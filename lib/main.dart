@@ -8,7 +8,8 @@ void main() {
 }
 
 class MyCFApp extends StatelessWidget {
-  const MyCFApp({Key? key}) : super(key: key);
+  // ✨ 修复黄包车警告：改成了最新的 super.key 现代语法
+  const MyCFApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -23,23 +24,28 @@ class MyCFApp extends StatelessWidget {
           primary: const Color(0xFF497E66),
         ),
       ),
-      // 🌿 使用 FutureBuilder 确保 Firebase 稳稳初始化完毕后再渲染首屏
       home: FutureBuilder(
         future: Firebase.initializeApp(),
         builder: (context, snapshot) {
-          // ❌ 如果初始化中途发生错误，在屏幕上打印出来提示
           if (snapshot.hasError) {
             return Scaffold(
-              body: Center(child: Text('Firebase Error: ${snapshot.error}')),
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Text(
+                    'Firebase Connecting Info: ${snapshot.error}',
+                    // ✨ 核心修复：手抖错字已改正为正确的 TextAlign.center
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
             );
           }
 
-          // ✨ 握手成功！百分之百安全地进入你的专属 Welcome Back 登录大屏
           if (snapshot.connectionState == ConnectionState.done) {
             return const LoginScreen();
           }
 
-          // ⏳ 在 Firebase 还没连接成功的零点几秒内，显示一个优雅的园艺绿转圈圈小动画
           return const Scaffold(
             body: Center(
               child: CircularProgressIndicator(

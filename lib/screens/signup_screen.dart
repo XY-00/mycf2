@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class SignUpScreen extends StatefulWidget {
-  const SignUpScreen({Key? key}) : super(key: key);
+  const SignUpScreen({super.key}); // 🌿 修复了过时的 key 语法
 
   @override
   State<SignUpScreen> createState() => _SignUpScreenState();
@@ -14,24 +14,84 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
   bool _agree = false;
+  bool _isLoading = false; // 🌿 状态追踪：用来控制注册时按钮变成转圈圈，防止重复点击
 
+  // 🌿 核心函数：连接 Firebase Authentication 注册账号
   void _register() async {
+    // 1. 验证两次输入的密码是否一致
     if (_passwordController.text != _confirmController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwords do not match!')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Passwords do not match!')),
+      );
       return;
     }
+
+    // 2. 验证邮箱和密码不能为空
+    if (_emailController.text.trim().isEmpty || _passwordController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Email and Password cannot be empty!')),
+      );
+      return;
+    }
+
+    // 3. 开始向 Firebase 发起请求，进入加载状态
+    setState(() => _isLoading = true);
+
     try {
+      // ✨ 真正的 Firebase 注册命令
       await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
+
+      // 注册成功后的提示
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account created successfully!')));
-        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Account created successfully! 🎉')),
+        );
+        Navigator.pop(context); // 自动返回到登录页面
+      }
+    } on FirebaseAuthException catch (e) {
+      // ❌ 精准捕获 Firebase 吐出来的错误并用弹窗弹给用户看
+      String errorMessage = 'Registration Failed';
+      if (e.code == 'weak-password') {
+        errorMessage = 'The password provided is too weak.';
+      } else if (e.code == 'email-already-in-use') {
+        errorMessage = 'The account already exists for that email.';
+      } else if (e.code == 'invalid-email') {
+        errorMessage = 'The email address is badly formatted.';
+      } else {
+        errorMessage = e.message ?? errorMessage;
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      // 捕获其他未知错误
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
+    } finally {
+      // 4. 结束请求，关闭转圈圈
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    // 🌿 良好的习惯：销毁控制器，释放手机内存
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmController.dispose();
+    super.dispose();
   }
 
   @override
@@ -72,13 +132,25 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               width: double.infinity,
                               height: 48,
                               child: ElevatedButton(
-                                onPressed: _agree ? _register : null,
-                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFA3FFA3), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                                child: const Text('Register', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                                // 🌿 如果在加载中，禁用按钮；如果没有勾选同意，也禁用按钮
+                                onPressed: (_agree && !_isLoading) ? _register : null,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFA3FFA3),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                // 🌿 加载中显示小圈圈，平时显示 Register 文本
+                                child: _isLoading
+                                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF497E66)))
+                                    : const Text('Register', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                               ),
                             ),
                             const SizedBox(height: 12),
-                            Center(child: GestureDetector(onTap: () => Navigator.pop(context), child: const Text('Already have an account? Login', style: TextStyle(color: Color(0xFF497E66), fontWeight: FontWeight.bold))))
+                            Center(
+                              child: GestureDetector(
+                                onTap: () => Navigator.pop(context),
+                                child: const Text('Already have an account? Login', style: TextStyle(color: Color(0xFF497E66), fontWeight: FontWeight.bold)),
+                              ),
+                            )
                           ],
                         ),
                       ),

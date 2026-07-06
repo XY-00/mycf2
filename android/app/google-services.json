@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "965677554306",
+    "firebase_url": "https://mycf-66326-default-rtdb.firebaseio.com",
+    "project_id": "mycf-66326",
+    "storage_bucket": "mycf-66326.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:965677554306:android:b835dcb0f687349692f29b",
+        "android_client_info": {
+          "package_name": "com.example.mycf"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB7_yKeKA5pRDg5AjA8u4G_5Rq31i5RTmA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
