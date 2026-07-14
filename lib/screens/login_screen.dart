@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'main_holder.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key}); // 🌿 使用最新的 super.key 现代语法
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -14,64 +14,37 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isObscure = true;
-  bool _isLoading = false; // 🌿 状态追踪：用来控制登录时显示转圈圈
+  bool _isLoading = false;
 
-  // 🌿 核心函数：连接 Firebase Authentication 验证登录
   void _login() async {
-    // 1. 验证输入框不能为空
     if (_emailController.text.trim().isEmpty || _passwordController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your email and password.')),
+        const SnackBar(content: Text('Invalid email or password')),
       );
       return;
     }
 
-    // 2. 开启加载动画，禁用按钮防止重复点击
     setState(() => _isLoading = true);
 
     try {
-      // ✨ 真正的 Firebase 登录验证命令
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final response = await Supabase.instance.client.auth.signInWithPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      // 3. 登录成功！直接切入系统主页框架（MainHolder）
-      if (mounted) {
+      if (response.user != null && mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const MainHolder()),
         );
       }
-    } on FirebaseAuthException catch (e) {
-      // ❌ 精准捕获 Firebase 吐出来的登录错误原因
-      String errorMessage = 'Login Failed';
-      if (e.code == 'user-not-found') {
-        errorMessage = 'No user found for that email.';
-      } else if (e.code == 'wrong-password') {
-        errorMessage = 'Wrong password provided for that user.';
-      } else if (e.code == 'invalid-email') {
-        errorMessage = 'The email address is badly formatted.';
-      } else if (e.code == 'user-disabled') {
-        errorMessage = 'This user account has been disabled.';
-      } else {
-        errorMessage = e.message ?? errorMessage;
-      }
-
+    } on AuthException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)),
-        );
-      }
-    } catch (e) {
-      // 捕获其他未知错误
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
+          const SnackBar(content: Text('Invalid email or password')),
         );
       }
     } finally {
-      // 4. 请求结束，关闭转圈圈
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -80,7 +53,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    // 🌿 释放内存控制器
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -88,21 +60,51 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          Positioned.fill(child: Image.asset('assets/app_background.png', fit: BoxFit.cover)),
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  children: [
-                    Image.asset('assets/app_logo.png', width: 110, height: 110),
-                    const SizedBox(height: 12),
-                    const Text('myCF', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF2E4D3E))),
-                    const SizedBox(height: 30),
-                    Card(
+    return GestureDetector(
+      // 点击白色框框外围的任何地方都能主动收起键盘，防止焦点滞留
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Container(
+        width: double.infinity,
+        height: double.infinity,
+        // 👑 第 1 点核心彻底修复：将背景做成全屏底层 Container 墙纸，Scaffold 变为完全透明
+        // 这样键盘不管怎么弹起，背景图像作为屏幕死静底色，100% 绝对不会移动一丁点！
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/app_background.png'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Scaffold(
+          backgroundColor: Colors.transparent, // 👑 必须设为透明
+          resizeToAvoidBottomInset: true, // 允许表单被键盘优雅推起，不遮挡框框
+          body: SafeArea(
+            child: Column(
+              children: [
+                // 👑 总体位置下移（保持你满意的合适高度间距）
+                const SizedBox(height: 100), 
+                
+                // 固定 Logo 区域，滑动卡片时永远在 Logo 下方穿梭，不挡 Logo
+                Center(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.9),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 4),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 4))
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(8),
+                    child: Image.asset('assets/app_logo.png', width: 90, height: 90),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 10.0),
+                    child: Card(
+                      color: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
                       elevation: 4,
                       child: Padding(
@@ -110,13 +112,23 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Center(child: Text('Welcome Back', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold))),
+                            const Center(
+                              child: Text('Welcome Back', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold))
+                            ),
+                            const SizedBox(height: 6),
+                            const Center(
+                              child: Text('Sign in to continue', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w400))
+                            ),
                             const SizedBox(height: 24),
                             const Text('Email Address', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
                             const SizedBox(height: 8),
                             TextField(
                               controller: _emailController,
-                              decoration: InputDecoration(hintText: 'Email Address', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                              decoration: InputDecoration(
+                                hintText: 'Email Address', 
+                                prefixIcon: const Icon(Icons.email_outlined, color: Colors.grey),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
                             ),
                             const SizedBox(height: 18),
                             const Text('Password', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
@@ -126,6 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               obscureText: _isObscure,
                               decoration: InputDecoration(
                                 hintText: 'Password',
+                                prefixIcon: const Icon(Icons.lock_outlined, color: Colors.grey),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                 suffixIcon: IconButton(
                                   icon: Icon(_isObscure ? Icons.visibility_off : Icons.visibility),
@@ -133,7 +146,16 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 24),
+                            
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: () {},
+                                child: const Text('Forgot Password ?', style: TextStyle(color: Colors.grey)),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            
                             SizedBox(
                               width: double.infinity,
                               height: 48,
@@ -145,18 +167,29 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 child: _isLoading
                                     ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF497E66)))
-                                    : const Text('Login', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 16)),
+                                    : const Text('Sign In', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 16)),
                               ),
                             ),
                             const SizedBox(height: 16),
-                            Center(child: TextButton(onPressed: () {}, child: const Text('Forgot Password ?', style: TextStyle(color: Colors.grey)))),
                             Center(
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   const Text("Don't have an account ? ", style: TextStyle(color: Colors.grey)),
                                   GestureDetector(
-                                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SignUpScreen())),
+                                    onTap: () {
+                                      // 👑 第 2 点核心彻底修复：在点击去注册页面的那一瞬间，强制把当前的输入焦点完全斩断消灭
+                                      FocusManager.instance.primaryFocus?.unfocus();
+                                      
+                                      Navigator.push(
+                                        context, 
+                                        MaterialPageRoute(builder: (_) => const SignUpScreen())
+                                      ).then((_) {
+                                        // 👑 当从注册页重新点击 Login 回到这个登录页时，再次执行强制清空焦点
+                                        // 确保输入框不会自作聪明保留上次激活状态，键盘完全保持收回！
+                                        FocusManager.instance.primaryFocus?.unfocus();
+                                      });
+                                    },
                                     child: const Text('Sign Up', style: TextStyle(color: Color(0xFF497E66), fontWeight: FontWeight.bold)),
                                   )
                                 ],
@@ -165,13 +198,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           ],
                         ),
                       ),
-                    )
-                  ],
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

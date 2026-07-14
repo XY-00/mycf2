@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_database/firebase_database.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // 👑 移除了旧 firebase 导入，修改为 supabase 导入
 
 class SettingScreen extends StatefulWidget {
   const SettingScreen({Key? key}) : super(key: key);
@@ -12,15 +12,25 @@ class _SettingScreenState extends State<SettingScreen> {
   double _threshold = 59.0;
   bool _manualMode = false;
 
-  // 🌿 这里的控制命令直连 Firebase，树莓派上的 Python 脚本听到后会立刻用 GPIO 拔掉或合上 5V 继电器！
+  // 👑 核心修改：移除旧 FirebaseDatabase 命令，转为用最简洁的 Supabase 执行远程水泵模式切换
   void _setPumpState(bool turnOn) async {
-    await FirebaseDatabase.instance.ref('control_panel').update({
-      'manual_pump_trigger': turnOn ? 1 : 0,
-    });
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(turnOn ? 'Submersible Pump Triggered: ON' : 'Submersible Pump Triggered: OFF')),
-      );
+    try {
+      await Supabase.instance.client
+          .from('control_panel')
+          .update({'manual_pump_trigger': turnOn ? 1 : 0})
+          .eq('id', 1); // 假设你的控制面板表里有一行基础配置 id 为 1
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(turnOn ? 'Submersible Pump Triggered: ON' : 'Submersible Pump Triggered: OFF')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update control panel: $e')),
+        );
+      }
     }
   }
 
@@ -32,7 +42,6 @@ class _SettingScreenState extends State<SettingScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // 59% 红色数值滑块控制区
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
@@ -57,7 +66,6 @@ class _SettingScreenState extends State<SettingScreen> {
             ),
             const SizedBox(height: 14),
 
-            // 手动强刷水泵开关箱
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
@@ -69,7 +77,7 @@ class _SettingScreenState extends State<SettingScreen> {
                       activeColor: const Color(0xFF497E66),
                       onChanged: (v) {
                         setState(() => _manualMode = v);
-                        if (!v) _setPumpState(false); // 关闭手动模式时强行关闭水泵，确保硬件安全
+                        if (!v) _setPumpState(false); 
                       }
                   ),
                   const SizedBox(height: 12),

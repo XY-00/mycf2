@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_database/firebase_database.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // 👑 移除了旧 firebase 导入，修改为 supabase 导入
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -14,21 +14,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _stabilityScore = 90;
   String _policyStatus = 'GREEN';
 
+  // 👑 声明一个用来取消 Supabase 实时流订阅的变量
+  RealtimeChannel? _statusSubscription;
+
   @override
   void initState() {
     super.initState();
-    // 🌿 秒级监听并接收树莓派通过 Firebase 上传的环境及水泵动态数据流
-    FirebaseDatabase.instance.ref('live_status').onValue.listen((event) {
-      final data = event.snapshot.value as Map?;
-      if (data != null) {
-        setState(() {
-          _moisture = (data['soil_moisture'] ?? 62.9).toDouble();
-          _carbonSaved = (data['carbon_saved'] ?? 146.0).toDouble();
-          _stabilityScore = (data['stability_score'] ?? 90).toInt();
-          _policyStatus = data['traffic_light_state'] ?? 'GREEN';
-        });
-      }
-    });
+    // 👑 核心修改：将旧的 Firebase 监听改成 Supabase 最精简的实时数据流流监听
+    // 树莓派写入到 supabase 的 live_status 表后，这里会立刻收到推送并刷新页面
+    _statusSubscription = Supabase.instance.client
+        .channel('public:live_status')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'live_status',
+          callback: (payload) {
+            final data = payload.newRecord;
+            if (data.isNotEmpty) {
+              setState(() {
+                _moisture = (data['soil_moisture'] ?? 62.9).toDouble();
+                _carbonSaved = (data['carbon_saved'] ?? 146.0).toDouble();
+                _stabilityScore = (data['stability_score'] ?? 90).toInt();
+                _policyStatus = data['traffic_light_state'] ?? 'GREEN';
+              });
+            }
+          },
+        );
+    
+    _statusSubscription?.subscribe();
+  }
+
+  @override
+  void dispose() {
+    // 👑 退出时安全注销实时流通道，保持项目绝对干净高效
+    if (_statusSubscription != null) {
+      Supabase.instance.client.removeChannel(_statusSubscription!);
+    }
+    super.dispose();
   }
 
   @override
@@ -45,7 +67,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const Text('Monitoring the Carbon Footprint for Soil and Plant', style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 16),
 
-                // 🌿 1. 降碳总量展示区：调用你的 my_ic_carbonfootprint
                 _buildCard(
                     child: Row(
                       children: [
@@ -62,7 +83,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     )
                 ),
 
-                // 🌿 2. 核心水分环形卡
                 _buildCard(
                     color: _moisture < 59.0 ? const Color(0xFFFFF3E0) : const Color(0xFFE8F5E9),
                     child: Column(
@@ -80,7 +100,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     )
                 ),
 
-                // 🌿 3. 碳稳定度百分环
                 _buildCard(
                     color: const Color(0xFFFFEBEE),
                     child: Column(
@@ -98,7 +117,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     )
                 ),
 
-                // 🌿 4. 安全策略等级联动：调用你的 my_ic_activepolicy
                 _buildCard(
                     child: ListTile(
                       leading: Image.asset('assets/my_ic_activepolicy.png', width: 40, height: 40),
