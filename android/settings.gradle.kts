@@ -22,9 +22,6 @@ plugins {
     id("com.android.application") version "9.0.1" apply false
     id("org.jetbrains.kotlin.android") version "2.3.20" apply false
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
-
-    // 🌿 核心步骤：在这里亲手加上这一行，注入谷歌 Firebase 服务的全局依赖版本号！
-    id("com.google.gms.google-services") version "4.5.0" apply false
 }
 
 include(":app")

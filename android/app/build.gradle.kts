@@ -1,11 +1,7 @@
 plugins {
     id("com.android.application")
-    id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
-
-    // 🌿 核心步骤：在这里亲手加上这一行，让 app 模块正式激活并使用 Firebase 服务！
-    id("com.google.gms.google-services")
 }
 
 android {
@@ -22,6 +18,7 @@ android {
         applicationId = "com.example.mycf"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
+   
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
