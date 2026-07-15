@@ -14,12 +14,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _stabilityScore = 90;
   String _policyStatus = 'GREEN';
   
-  // 硬件 DHT11 实时变量
+  // DHT11 实时硬件反馈变量
   double _temperature = 26.5;
   double _humidity = 55.0;
 
   // 动态捕获用户的真实 Full Name
-  String _userFullName = 'User';
+  String _userFullName = 'LEE XIN YI';
 
   RealtimeChannel? _statusSubscription;
 
@@ -36,7 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       setState(() {
         _userFullName = user.userMetadata?['name'] ?? 
                         user.email?.split('@').first ?? 
-                        'User';
+                        'LEE XIN YI';
       });
     }
   }
@@ -80,189 +80,226 @@ class _DashboardScreenState extends State<DashboardScreen> {
     const Color darkGreenText = Color(0xFF2C3E35); // 优雅墨绿深字
 
     return Scaffold(
-      backgroundColor: Colors.transparent, // 👑 设为透明，完美融入外壳统一绑定的固定背景图
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 10),
-              
-              // 👑 第 1 点修改：彻底删除了顶部原先的绿色AppBar框，换成完全贴合第二张照片的高级左侧问候与右侧头像布局
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: Colors.transparent, // 穿透 MainHolder 的固定大壁纸
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 👑 彻底重构顶部背景：去掉固定高度，改用 Padding 自动紧密包裹内容，下边缘绝不多留任何空位！
+            Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFFECF4F0), Color(0xFFDCEAE4)], // 清透温柔的莫兰迪浅豆绿
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                ),
+              ),
+              child: SafeArea(
+                bottom: false, // 👑 关键：让安全区域在底部不留白，交给 Padding 统一精准控制
+                child: Padding(
+                  // 👑 通过调整这里的 bottom 边距为 10，让绿底色块在文字下方实现完美贴合包裹
+                  padding: const EdgeInsets.only(left: 20.0, right: 20.0, top: 14.0, bottom: 12.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Text(
-                        'Hi, $_userFullName!',
-                        style: const TextStyle(
-                          fontSize: 26, 
-                          fontWeight: FontWeight.bold, 
-                          color: darkGreenText,
-                          letterSpacing: -0.5,
-                        ),
+                      // 左侧头像
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundColor: primaryGreen.withOpacity(0.12),
+                        child: const Icon(Icons.person, color: darkGreenText, size: 22),
                       ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Welcome back to monitoring.',
-                        style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w400),
+                      const SizedBox(width: 14),
+                      // 问候文字
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Hi, $_userFullName!',
+                            style: const TextStyle(
+                              fontSize: 21, 
+                              fontWeight: FontWeight.bold, 
+                              color: darkGreenText,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          const Text(
+                            'Welcome back to monitoring.',
+                            style: TextStyle(fontSize: 11, color: Colors.black45, fontWeight: FontWeight.w400),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  // 👑 右侧高颜值的舒适头像徽章
-                  CircleAvatar(
-                    radius: 22,
-                    backgroundColor: primaryGreen.withOpacity(0.12),
-                    child: const Icon(Icons.person, color: primaryGreen),
-                  ),
-                ],
+                ),
               ),
-              const SizedBox(height: 24),
+            ),
 
-              // DHT11 实时并排卡片
-              Row(
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: Column(
                 children: [
-                  Expanded(
-                    child: _buildDHT11MiniCard(
-                      title: 'Temperature',
-                      value: '${_temperature.toStringAsFixed(1)} °C',
-                      icon: Icons.thermostat,
-                      iconColor: Colors.orange,
+                  const SizedBox(height: 14),
+                  // DHT11 实时温湿度反馈卡片组件
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildDHT11MiniCard(
+                          title: 'Temperature',
+                          value: '${_temperature.toStringAsFixed(1)} °C',
+                          icon: Icons.thermostat,
+                          iconColor: Colors.orange,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildDHT11MiniCard(
+                          title: 'Humidity',
+                          value: '${_humidity.toStringAsFixed(0)} %',
+                          icon: Icons.water_drop_outlined,
+                          iconColor: Colors.blue,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // 卡片一：Total Carbon Footprint Saved
+                  _buildOriginalCard(
+                    color: Colors.white,
+                    child: Row(
+                      children: [
+                        Image.asset(
+                          'assets/my_ic_carbonfootprint.png',
+                          width: 36,
+                          height: 36,
+                          color: primaryGreen,
+                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.eco_outlined, size: 36, color: primaryGreen),
+                        ),
+                        const SizedBox(width: 14),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Total Carbon Footprint Saved', 
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black54)
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$_carbonSaved mg CO₂ e', 
+                              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)
+                            ),
+                          ],
+                        )
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildDHT11MiniCard(
-                      title: 'Humidity',
-                      value: '${_humidity.toStringAsFixed(0)} %',
-                      icon: Icons.water_drop_outlined,
-                      iconColor: Colors.blue,
+
+                  // 卡片二：Plant Hydration (%)
+                  _buildOriginalCard(
+                    color: const Color(0xFFEAF2E8), 
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 10),
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            SizedBox(
+                              height: 110, 
+                              width: 110, 
+                              child: CircularProgressIndicator(
+                                value: _moisture / 100, 
+                                strokeWidth: 10, 
+                                backgroundColor: Colors.white.withOpacity(0.5),
+                                color: const Color(0xFF5CB85C), 
+                              ),
+                            ),
+                            Text(
+                              '$_moisture', 
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        const Text(
+                          'Plant Hydration (%)', 
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)
+                        ),
+                        const SizedBox(height: 6),
+                      ],
                     ),
                   ),
+
+                  // 卡片三：Carbon Stability Score
+                  _buildOriginalCard(
+                    color: const Color(0xFFFDECEB), 
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 10),
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            SizedBox(
+                              height: 100, 
+                              width: 100, 
+                              child: CircularProgressIndicator(
+                                value: _stabilityScore / 100, 
+                                strokeWidth: 8, 
+                                backgroundColor: Colors.white.withOpacity(0.5),
+                                color: const Color(0xFFEC5B5B), 
+                              ),
+                            ),
+                            Text(
+                              '$_stabilityScore / 100', 
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Carbon Stability Score', 
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+                    ),
+                  ),
+
+                  // 卡片四：Active Policy
+                  _buildOriginalCard(
+                    color: Colors.white,
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.shield_outlined, size: 36, color: primaryGreen),
+                      title: const Text('Active Policy', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                      subtitle: const Text('Status: Carbon Guarding', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: _policyStatus == 'RED' 
+                              ? Colors.redAccent 
+                              : (_policyStatus == 'YELLOW' ? Colors.orange : const Color(0xFF66BB6A)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          _policyStatus, 
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                 ],
               ),
-              const SizedBox(height: 14),
-
-              // 卡片一：Total Carbon Footprint Saved
-              _buildOriginalCard(
-                child: Row(
-                  children: [
-                    const Icon(Icons.eco_outlined, size: 36, color: primaryGreen),
-                    const SizedBox(width: 14),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Total Carbon Footprint Saved', 
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black54)
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '$_carbonSaved mg CO₂ e', 
-                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)
-                        ),
-                      ],
-                    )
-                  ],
-                ),
-              ),
-
-              // 卡片二：Plant Hydration (%)
-              _buildOriginalCard(
-                child: Column(
-                  children: [
-                    const SizedBox(height: 10),
-                    Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        SizedBox(
-                          height: 110, 
-                          width: 110, 
-                          child: CircularProgressIndicator(
-                            value: _moisture / 100, 
-                            strokeWidth: 10, 
-                            backgroundColor: Colors.grey.withOpacity(0.1),
-                            color: primaryGreen,
-                          ),
-                        ),
-                        // 👑 第 3 点修改：因为外部组件已经标注了 (%)，这里去掉多余的 % 符号，直接显示纯净的数字
-                        Text(
-                          '$_moisture', 
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    const Text(
-                      'Plant Hydration (%)', 
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)
-                    ),
-                    const SizedBox(height: 6),
-                  ],
-                ),
-              ),
-
-              // 卡片三：Carbon Stability Score
-              _buildOriginalCard(
-                child: Column(
-                  children: [
-                    const SizedBox(height: 10),
-                    Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        SizedBox(
-                          height: 100, 
-                          width: 100, 
-                          child: CircularProgressIndicator(
-                            value: _stabilityScore / 100, 
-                            strokeWidth: 8, 
-                            backgroundColor: Colors.grey.withOpacity(0.1),
-                            color: const Color(0xFFE57373),
-                          ),
-                        ),
-                        Text(
-                          '$_stabilityScore / 100', 
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Carbon Stability Score', 
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)
-                    ),
-                    const SizedBox(height: 6),
-                  ],
-                ),
-              ),
-
-              // 卡片四：Active Policy
-              _buildOriginalCard(
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.shield_outlined, size: 36, color: primaryGreen),
-                  title: const Text('Active Policy', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-                  subtitle: const Text('Status: Carbon Guarding', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _policyStatus == 'RED' 
-                          ? Colors.redAccent 
-                          : (_policyStatus == 'YELLOW' ? Colors.orange : const Color(0xFF66BB6A)),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _policyStatus, 
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -300,13 +337,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildOriginalCard({required Widget child}) {
+  Widget _buildOriginalCard({required Widget child, required Color color}) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white, 
+        color: color, 
         borderRadius: BorderRadius.circular(16), 
         boxShadow: [
           BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6, offset: const Offset(0, 3))
