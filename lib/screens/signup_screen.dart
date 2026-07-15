@@ -16,6 +16,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _confirmController = TextEditingController();
   
   bool _isLoading = false;
+  
+  // 👑 彻底修复编译报错：完整定义密码显隐控制变量
   bool _isPasswordObscure = true;
   bool _isConfirmObscure = true;
 
@@ -58,9 +60,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
   }
 
-  // 👑 智能提示保底拦截核心方法
   void _register() async {
-    // 1️⃣ 情况一：任何一个框留白了，立刻无条件拦截弹出 Please fill in all blanks
     if (_nameController.text.trim().isEmpty ||
         _emailController.text.trim().isEmpty ||
         _passwordController.text.isEmpty ||
@@ -71,40 +71,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
 
-    // 判断当前邮箱格式以及密码格式是否有红字报错
     final isEmailInvalid = _emailError != null;
     final isPasswordInvalid = _passwordError != null || _confirmError != null;
 
-    // 2️⃣ 情况二：Email 和 密码 同时都不对
     if (isEmailInvalid && isPasswordInvalid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please check your email and password')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please check your email and password')));
       return;
     }
-
-    // 3️⃣ 情况三：仅仅是 Email 格式不对
     if (isEmailInvalid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please check your email')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please check your email')));
       return;
     }
-
-    // 4️⃣ 情况四：仅仅是密码格式或匹配不对
     if (isPasswordInvalid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please check your password')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please check your password')));
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
+      // 👑 真正的 Full Name 绑定：传入 data 参数，确保后台 Display Name 展现你的真名
       await Supabase.instance.client.auth.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
+        data: {
+          'name': _nameController.text.trim(),
+        },
       );
 
       if (mounted) {
@@ -156,24 +148,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
           body: SafeArea(
             child: Column(
               children: [
-                const SizedBox(height: 100), 
-                
+                const SizedBox(height: 130), 
                 Center(
                   child: Container(
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.9),
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 4),
-                      boxShadow: [
-                        BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 4))
-                      ],
                     ),
                     padding: const EdgeInsets.all(8),
                     child: Image.asset('assets/app_logo.png', width: 90, height: 90),
                   ),
                 ),
                 const SizedBox(height: 20),
-                
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 10.0),
@@ -213,7 +200,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 onPressed: () => setState(() => _isConfirmObscure = !_isConfirmObscure),
                               ),
                             ),
-                            
                             const SizedBox(height: 12),
                             SizedBox(
                               width: double.infinity,
@@ -237,8 +223,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   const Text("Already have an account? ", style: TextStyle(color: Colors.grey)),
                                   GestureDetector(
                                     onTap: () {
-                                      // 👑 彻底释放当前页面所有输入框的焦点，退回时绝不会携带任何残留光标
-                                      FocusScope.of(context).unfocus();
+                                      FocusManager.instance.primaryFocus?.unfocus();
                                       Navigator.pop(context);
                                     },
                                     child: const Text('Login', style: TextStyle(color: Color(0xFF497E66), fontWeight: FontWeight.bold)),
