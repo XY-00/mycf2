@@ -5,63 +5,56 @@ class AnalyticScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const Color primaryGreen = Color(0xFF497E66);
+    const Color primaryDarkGreen = Color(0xFF2C4A3E); 
     const Color cardBg = Color(0xFFEAF2E8);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        title: const Text('Analysis Report', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 20)),
-        centerTitle: true,
-        backgroundColor: primaryGreen,
-        elevation: 0,
-      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // 👑 2. 修改点：LIVE 实况组件给予坚固的纯白色实色卡片作为底座，彻底告别穿透干扰！
+            // 👑 1, 2 & 3. 修改点：大标题顶栏去掉左侧 Icon 图像，纯字高质感呈现
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6)],
+              decoration: const BoxDecoration(
+                color: primaryDarkGreen, 
+                borderRadius: BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20)),
               ),
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 20.0, right: 20.0, top: 18.0, bottom: 18.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Text(
+                        'Analysis Report',
+                        style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            Container(
+              width: double.infinity, padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
               child: Column(
                 children: [
                   Container(
-                    width: double.infinity,
-                    height: 170,
+                    width: double.infinity, height: 170,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      color: const Color(0xFFDCEAE4), // 模拟真实的实时图像层底色
-                      image: const DecorationImage(
-                        image: AssetImage('assets/analytic_plant.jpg'),
-                        fit: BoxFit.cover,
-                      ),
+                      borderRadius: BorderRadius.circular(12), color: const Color(0xFFDCEAE4),
+                      image: const DecorationImage(image: AssetImage('assets/analytic_plant.jpg'), fit: BoxFit.cover),
                     ),
                     child: Stack(
                       children: [
-                        Positioned(
-                          top: 12,
-                          left: 12,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
-                            child: const Text('• LIVE', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 12,
-                          left: 12,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            color: Colors.black54,
-                            child: const Text('Current Moisture: 65%', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                          ),
-                        )
+                        Positioned(top: 12, left: 12, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)), child: const Text('• LIVE', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)))),
+                        Positioned(bottom: 12, left: 12, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), color: Colors.black54, child: const Text('Current Moisture: 65%', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)))),
                       ],
                     ),
                   ),
@@ -71,27 +64,23 @@ class AnalyticScreen extends StatelessWidget {
             const SizedBox(height: 16),
 
             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
+              width: double.infinity, padding: const EdgeInsets.all(14),
+              margin: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: const [
-                      Icon(Icons.eco_outlined, color: primaryGreen, size: 18),
+                      Icon(Icons.eco_outlined, color: primaryDarkGreen, size: 18),
                       SizedBox(width: 6),
-                      Text('Visual Health Validation', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryGreen)),
+                      Text('Visual Health Validation', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
                     ],
                   ),
                   const SizedBox(height: 12),
                   GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2,
-                    childAspectRatio: 2.3,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
+                    shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 2, childAspectRatio: 2.3, mainAxisSpacing: 8, crossAxisSpacing: 8,
                     children: [
                       _buildGridItem('Leaf Color Analysis', 'Lush green color, no yellowing', Icons.spa_outlined),
                       _buildGridItem('Growth Rate', '2.3 cm growth in 7 days', Icons.stacked_line_chart),
@@ -105,22 +94,17 @@ class AnalyticScreen extends StatelessWidget {
             const SizedBox(height: 16),
 
             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.black12),
-              ),
+              width: double.infinity, padding: const EdgeInsets.all(14),
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black12)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('📈 24-Hour Moisture Trend Analysis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
-                  const SizedBox(height: 12),
+                  const Text('📈 24-Hour Moisture Trend Analysis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
+                  const SizedBox(height: 16),
                   SizedBox(
-                    height: 120,
-                    width: double.infinity,
-                    child: CustomPaint(painter: MicroTrendChartPainter()),
+                    height: 150, width: double.infinity,
+                    child: CustomPaint(painter: CompleteAxisTrendPainter()),
                   ),
                 ],
               ),
@@ -128,13 +112,13 @@ class AnalyticScreen extends StatelessWidget {
             const SizedBox(height: 16),
 
             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
+              width: double.infinity, padding: const EdgeInsets.all(14),
+              margin: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Carbon Protection', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryGreen)),
+                  const Text('Carbon Protection', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
                   const SizedBox(height: 10),
                   Row(
                     children: [
@@ -144,7 +128,7 @@ class AnalyticScreen extends StatelessWidget {
                           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
                           child: Column(
                             children: const [
-                              Text('3', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primaryGreen)),
+                              Text('3', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
                               Text('Successful Interventions', style: TextStyle(fontSize: 11, color: Colors.grey)),
                             ],
                           ),
@@ -168,6 +152,7 @@ class AnalyticScreen extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -179,8 +164,7 @@ class AnalyticScreen extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Row(
             children: [
@@ -197,31 +181,50 @@ class AnalyticScreen extends StatelessWidget {
   }
 }
 
-class MicroTrendChartPainter extends CustomPainter {
+class CompleteAxisTrendPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFF5CB85C)
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke;
+    final axisPaint = Paint()..color = Colors.black87..strokeWidth = 1.2..style = PaintingStyle.stroke;
+    final gridPaint = Paint()..color = Colors.black12..strokeWidth = 0.5..style = PaintingStyle.stroke;
+    final linePaint = Paint()..color = const Color(0xFF5CB85C)..strokeWidth = 2.5..style = PaintingStyle.stroke;
+    final dashPaint = Paint()..color = Colors.redAccent..strokeWidth = 1.2..style = PaintingStyle.stroke;
 
-    final baseLinePaint = Paint()
-      ..color = Colors.red.withOpacity(0.5)
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
+    double leftPadding = 42.0;
+    double bottomPadding = 25.0;
+    double chartWidth = size.width - leftPadding;
+    double chartHeight = size.height - bottomPadding;
 
-    canvas.drawLine(Offset(0, size.height * 0.65), Offset(size.width, size.height * 0.65), baseLinePaint);
+    canvas.drawLine(Offset(leftPadding, 0), Offset(leftPadding, chartHeight), axisPaint);
+    canvas.drawLine(Offset(leftPadding, chartHeight), Offset(size.width, chartHeight), axisPaint);
+
+    List<String> yLabels = ['100%', '75%', '50%', '25%', '0%'];
+    for (int i = 0; i < yLabels.length; i++) {
+      double yPos = (chartHeight / (yLabels.length - 1)) * i;
+      canvas.drawLine(Offset(leftPadding, yPos), Offset(size.width, yPos), gridPaint);
+      TextPainter(text: TextSpan(text: yLabels[i], style: const TextStyle(color: Colors.black54, fontSize: 9, fontWeight: FontWeight.bold)), textDirection: TextDirection.ltr)..layout()..paint(canvas, Offset(5, yPos - 6));
+    }
+
+    double y59Pos = chartHeight * (1.0 - 0.59);
+    double stepWidth = 5; double stepSpace = 4;
+    double currentX = leftPadding;
+    while (currentX < size.width) {
+      canvas.drawLine(Offset(currentX, y59Pos), Offset(currentX + stepWidth, y59Pos), dashPaint);
+      currentX += stepWidth + stepSpace;
+    }
+    TextPainter(text: const TextSpan(text: '59% Safe Line', style: TextStyle(color: Colors.redAccent, fontSize: 8, fontWeight: FontWeight.bold)), textDirection: TextDirection.ltr)..layout()..paint(canvas, Offset(size.width - 65, y59Pos - 11));
+
+    List<String> xLabels = ['1100', '1200', '1300', '1400', '1500'];
+    for (int i = 0; i < xLabels.length; i++) {
+      double xPos = leftPadding + (chartWidth / (xLabels.length - 1)) * i;
+      canvas.drawLine(Offset(xPos, 0), Offset(xPos, chartHeight), gridPaint);
+      TextPainter(text: TextSpan(text: xLabels[i], style: const TextStyle(color: Colors.black54, fontSize: 9, fontWeight: FontWeight.bold)), textDirection: TextDirection.ltr)..layout()..paint(canvas, Offset(xPos - 12, chartHeight + 6));
+    }
 
     final path = Path();
-    path.moveTo(0, size.height * 0.4);
-    path.lineTo(size.width * 0.2, size.height * 0.45);
-    path.lineTo(size.width * 0.4, size.height * 0.52);
-    path.lineTo(size.width * 0.5, size.height * 0.15);
-    path.lineTo(size.width * 0.7, size.height * 0.28);
-    path.lineTo(size.width * 0.9, size.height * 0.38);
-    path.lineTo(size.width, size.height * 0.42);
-
-    canvas.drawPath(path, paint);
+    path.moveTo(leftPadding, chartHeight * 0.38); path.lineTo(leftPadding + chartWidth * 0.25, chartHeight * 0.5);
+    path.lineTo(leftPadding + chartWidth * 0.5, chartHeight * 0.18); path.lineTo(leftPadding + chartWidth * 0.75, chartHeight * 0.33);
+    path.lineTo(size.width, chartHeight * 0.42);
+    canvas.drawPath(path, linePaint);
   }
 
   @override

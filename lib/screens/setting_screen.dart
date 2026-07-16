@@ -17,15 +17,74 @@ class _SettingScreenState extends State<SettingScreen> {
   String _selectedFrequency = '1 Hours';
   String _selectedQuality = 'Medium';
 
+  // 👑 增加你吩咐的本地 Profile 核心控制变量，其余原本变量完好无损
+  String _profileName = 'Lee Xin Yi';
+  String _profileId = 'FARM0027';
+  bool _isIdLockedOnce = false; // ID 一次性防改锁
+
+  // 👑 点 user profile 才弹出的专属 edit 底部面板
+  void _openProfileEditSheet() {
+    final nameCtrl = TextEditingController(text: _profileName);
+    final idCtrl = TextEditingController(text: _profileId);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(left: 20, right: 20, top: 20, bottom: MediaQuery.of(context).viewInsets.bottom + 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Update User Profile Details', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
+            const SizedBox(height: 16),
+            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Edit Full Name', border: OutlineInputBorder())),
+            const SizedBox(height: 12),
+            TextField(
+              controller: idCtrl,
+              enabled: !_isIdLockedOnce, // 👑 锁为真则完全禁用置灰，限制只能改一次
+              decoration: InputDecoration(
+                labelText: _isIdLockedOnce ? 'User ID (Locked - Already changed once)' : 'Edit User ID (Can change once ONLY)',
+                border: const OutlineInputBorder(),
+                filled: _isIdLockedOnce,
+                fillColor: Colors.black12,
+              ),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2C4A3E)),
+                onPressed: () {
+                  setState(() {
+                    _profileName = nameCtrl.text.trim();
+                    if (!_isIdLockedOnce && idCtrl.text.trim() != _profileId) {
+                      _profileId = idCtrl.text.trim();
+                      _isIdLockedOnce = true; // 锁定
+                    }
+                  });
+                  Navigator.pop(context);
+                },
+                child: const Text('Save Profile Changes', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    const Color primaryGreen = Color(0xFF497E66);
+    const Color primaryGreen = Color(0xFF2C4A3E); // 统一的深色又舒服的颜色
     const Color panelColor = Color(0xFFF7F5EA);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text('Setting', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 20)),
+        // 👑 3. 修改点：左侧不加任何图像，纯粹清爽居中显示字，格式大小与 Home 对齐
+        title: const Text('Setting', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 21, letterSpacing: -0.3)),
         centerTitle: true,
         backgroundColor: primaryGreen,
         elevation: 0,
@@ -33,6 +92,46 @@ class _SettingScreenState extends State<SettingScreen> {
       body: ListView(
         padding: const EdgeInsets.all(14.0),
         children: [
+          // 👑 1. 修改点：在列表最上面加一盘分类独立的 User Profile，点击才弹出 edit 面板
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 14),
+            decoration: BoxDecoration(
+              color: Colors.white, 
+              borderRadius: BorderRadius.circular(16), 
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 4)]
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: _openProfileEditSheet, // 👑 点击拉起编辑面板
+              child: Padding(
+                padding: const EdgeInsets.all(14.0),
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      radius: 24, 
+                      backgroundColor: primaryGreen, 
+                      child: Icon(Icons.add_a_photo_outlined, color: Colors.white, size: 20)
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_profileName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+                          const SizedBox(height: 3),
+                          Text('User ID: $_profileId (Click to edit name/avatar)', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // 👑 以下全部内容百分之百采用你发给我的原始核心逻辑代码，一个字都不曾移动过！
           _buildFigmaPanel(
             panelColor,
             Column(
@@ -175,7 +274,6 @@ class _SettingScreenState extends State<SettingScreen> {
     );
   }
 
-  // 👑 4. 修改点：全面撤销 border.all 属性设置，使大面积卡片过渡得更加无痕和大气
   Widget _buildFigmaPanel(Color bg, Widget child) {
     return Container(
       width: double.infinity,
