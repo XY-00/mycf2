@@ -23,7 +23,7 @@ class _SettingScreenState extends State<SettingScreen> {
   final Map<String, bool> _hardwareStatus = {
     'Raspberry Pi 4B Host': true,
     'DHT11 Temp & Humidity Sensor': true,
-    'ADS1115 (Soil Moisture Sensors Hub))': true,
+    'ADS1115 (Soil Moisture Sensors Hub)': true,
     '5V Relay & Water Pump Group': true,
   };
 

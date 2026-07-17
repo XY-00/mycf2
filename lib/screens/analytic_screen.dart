@@ -88,8 +88,15 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
                               top: 12, left: 12, 
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), 
-                                decoration: BoxDecoration(color: const Color(0xFF5CB85C), borderRadius: BorderRadius.circular(12)), 
-                                child: const Text('LIVE CAMERA', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                // 这里改为红色，同时保持标签内部文字样式
+                                decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)), 
+                                child: Row(
+                                  children: const [
+                                    Icon(Icons.circle, color: Colors.white, size: 8),
+                                    SizedBox(width: 4),
+                                    Text('LIVE CAMERA', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
                               ),
                             ),
                             if (_selectedPlantTab == 0 || _selectedPlantTab == 1)
