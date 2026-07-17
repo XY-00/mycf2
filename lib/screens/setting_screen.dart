@@ -17,12 +17,10 @@ class _SettingScreenState extends State<SettingScreen> {
   String _selectedFrequency = '1 Hours';
   String _selectedQuality = 'Medium';
 
-  // 👑 增加你吩咐的本地 Profile 核心控制变量，其余原本变量完好无损
   String _profileName = 'Lee Xin Yi';
   String _profileId = 'FARM0027';
-  bool _isIdLockedOnce = false; // ID 一次性防改锁
+  bool _isIdLockedOnce = false; 
 
-  // 👑 点 user profile 才弹出的专属 edit 底部面板
   void _openProfileEditSheet() {
     final nameCtrl = TextEditingController(text: _profileName);
     final idCtrl = TextEditingController(text: _profileId);
@@ -43,7 +41,7 @@ class _SettingScreenState extends State<SettingScreen> {
             const SizedBox(height: 12),
             TextField(
               controller: idCtrl,
-              enabled: !_isIdLockedOnce, // 👑 锁为真则完全禁用置灰，限制只能改一次
+              enabled: !_isIdLockedOnce, 
               decoration: InputDecoration(
                 labelText: _isIdLockedOnce ? 'User ID (Locked - Already changed once)' : 'Edit User ID (Can change once ONLY)',
                 border: const OutlineInputBorder(),
@@ -61,7 +59,7 @@ class _SettingScreenState extends State<SettingScreen> {
                     _profileName = nameCtrl.text.trim();
                     if (!_isIdLockedOnce && idCtrl.text.trim() != _profileId) {
                       _profileId = idCtrl.text.trim();
-                      _isIdLockedOnce = true; // 锁定
+                      _isIdLockedOnce = true; 
                     }
                   });
                   Navigator.pop(context);
@@ -77,198 +75,224 @@ class _SettingScreenState extends State<SettingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const Color primaryGreen = Color(0xFF2C4A3E); // 统一的深色又舒服的颜色
+    const Color primaryGreen = Color(0xFF2C4A3E); 
     const Color panelColor = Color(0xFFF7F5EA);
+    const Color softIvoryWhite = Color(0xFFF9FBFA); 
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        // 👑 3. 修改点：左侧不加任何图像，纯粹清爽居中显示字，格式大小与 Home 对齐
-        title: const Text('Setting', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 21, letterSpacing: -0.3)),
-        centerTitle: true,
-        backgroundColor: primaryGreen,
-        elevation: 0,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(14.0),
+      body: Column(
         children: [
-          // 👑 1. 修改点：在列表最上面加一盘分类独立的 User Profile，点击才弹出 edit 面板
+          // 👑 Title Bar: 左右 Padding 锁定 20.0
           Container(
             width: double.infinity,
-            margin: const EdgeInsets.only(bottom: 14),
-            decoration: BoxDecoration(
-              color: Colors.white, 
-              borderRadius: BorderRadius.circular(16), 
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 4)]
+            decoration: const BoxDecoration(
+              color: primaryGreen, 
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
             ),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: _openProfileEditSheet, // 👑 点击拉起编辑面板
+            child: SafeArea(
+              bottom: false,
               child: Padding(
-                padding: const EdgeInsets.all(14.0),
+                padding: const EdgeInsets.only(left: 20.0, right: 20.0, top: 14.0, bottom: 16.0), 
                 child: Row(
-                  children: [
-                    const CircleAvatar(
-                      radius: 24, 
-                      backgroundColor: primaryGreen, 
-                      child: Icon(Icons.add_a_photo_outlined, color: Colors.white, size: 20)
+                  mainAxisAlignment: MainAxisAlignment.center, 
+                  children: const [
+                    Text(
+                      'Setting',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 21, letterSpacing: -0.3),
                     ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(_profileName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
-                          const SizedBox(height: 3),
-                          Text('User ID: $_profileId (Click to edit name/avatar)', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
                   ],
                 ),
               ),
             ),
           ),
 
-          // 👑 以下全部内容百分之百采用你发给我的原始核心逻辑代码，一个字都不曾移动过！
-          _buildFigmaPanel(
-            panelColor,
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Expanded(
+            child: ListView(
+              // 👑 修改点 1：将横向内边距从 14 强制锁死为 20.0，卡片完美延展，对齐上下沿！
+              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 14.0),
               children: [
-                Row(
-                  children: const [
-                    Icon(Icons.shutter_speed, size: 16, color: primaryGreen),
-                    SizedBox(width: 6),
-                    Text('Operation Mode Controls', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    _buildModeBtn('Full Auto', true),
-                    _buildModeBtn('Semi Auto', false),
-                    _buildModeBtn('Power Save', false),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(children: const [Icon(Icons.waves, size: 14), SizedBox(width: 4), Text('Carbon Red-line Target Controls', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold))]),
-                    Text('${_redLineTarget.toStringAsFixed(1)} %', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                Slider(
-                  value: _redLineTarget,
-                  min: 0,
-                  max: 100,
-                  activeColor: primaryGreen,
-                  inactiveColor: Colors.black12,
-                  onChanged: (val) => setState(() => _redLineTarget = val),
-                ),
-              ],
-            ),
-          ),
-
-          _buildFigmaPanel(
-            panelColor,
-            Column(
-              children: [
-                Row(
-                  children: const [
-                    Icon(Icons.opacity, size: 16, color: Colors.blue),
-                    SizedBox(width: 6),
-                    Text('Water Controls', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                _buildDropdownRow('Max Watering Duration', _selectedDuration, ['10 sec', '20 sec', '30 sec'], (v) => setState(() => _selectedDuration = v!)),
-                const SizedBox(height: 8),
-                _buildDropdownRow('Watering Interval', _selectedInterval, ['10 min', '30 min', '60 min'], (v) => setState(() => _selectedInterval = v!)),
-              ],
-            ),
-          ),
-
-          _buildFigmaPanel(
-            panelColor,
-            Column(
-              children: [
-                Row(
-                  children: const [
-                    Icon(Icons.camera_alt_outlined, size: 16, color: Colors.black87),
-                    SizedBox(width: 6),
-                    Text('Live Vision Setting', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                _buildDropdownRow('Capture Frequency', _selectedFrequency, ['1 Hours', '2 Hours', '4 Hours'], (v) => setState(() => _selectedFrequency = v!)),
-                const SizedBox(height: 8),
-                _buildDropdownRow('Image Quality', _selectedQuality, ['Low', 'Medium', 'High'], (v) => setState(() => _selectedQuality = v!)),
-              ],
-            ),
-          ),
-
-          _buildFigmaPanel(
-            panelColor,
-            Column(
-              children: [
-                Row(
-                  children: const [
-                    Icon(Icons.warning_amber_rounded, size: 16, color: Colors.redAccent),
-                    SizedBox(width: 6),
-                    Text('Manual Override Controls', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Enable Manual Mode', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    Switch(value: _isManualMode, activeColor: primaryGreen, onChanged: (v) => setState(() => _isManualMode = v)),
-                  ],
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Water Pump Control', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFC3BADB), 
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12), 
-                          side: const BorderSide(color: Colors.black38, width: 0.8)
-                        )
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: softIvoryWhite, 
+                    borderRadius: BorderRadius.circular(16), 
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 4)]
+                  ),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: _openProfileEditSheet, 
+                    child: Padding(
+                      padding: const EdgeInsets.all(14.0),
+                      child: Row(
+                        children: [
+                          const CircleAvatar(
+                            radius: 24, 
+                            backgroundColor: primaryGreen, 
+                            child: Icon(Icons.person, color: Colors.white, size: 22)
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(_profileName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+                                const SizedBox(height: 3),
+                                Text('User ID: $_profileId (Click to edit name/avatar)', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
+                        ],
                       ),
-                      onPressed: _isManualMode ? () {} : null,
-                      child: const Text('Activate Pump', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 12)),
-                    )
-                  ],
+                    ),
+                  ),
+                ),
+
+                _buildFigmaPanel(
+                  panelColor,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(Icons.shutter_speed, size: 16, color: primaryGreen),
+                          SizedBox(width: 6),
+                          Text('Operation Mode Controls', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          _buildModeBtn('Full Auto', true),
+                          _buildModeBtn('Semi Auto', false),
+                          _buildModeBtn('Power Save', false),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(children: const [Icon(Icons.waves, size: 14), SizedBox(width: 4), Text('Carbon Red-line Target Controls', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold))]),
+                          Text('${_redLineTarget.toStringAsFixed(1)} %', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      Slider(
+                        value: _redLineTarget,
+                        min: 0,
+                        max: 100,
+                        activeColor: primaryGreen,
+                        inactiveColor: Colors.black12,
+                        onChanged: (val) => setState(() => _redLineTarget = val),
+                      ),
+                    ],
+                  ),
+                ),
+
+                _buildFigmaPanel(
+                  panelColor,
+                  Column(
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(Icons.opacity, size: 16, color: Colors.blue),
+                          SizedBox(width: 6),
+                          Text('Water Controls', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _buildDropdownRow('Max Watering Duration', _selectedDuration, ['10 sec', '20 sec', '30 sec'], (v) => setState(() => _selectedDuration = v!)),
+                      const SizedBox(height: 8),
+                      _buildDropdownRow('Watering Interval', _selectedInterval, ['10 min', '30 min', '60 min'], (v) => setState(() => _selectedInterval = v!)),
+                    ],
+                  ),
+                ),
+
+                _buildFigmaPanel(
+                  panelColor,
+                  Column(
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(Icons.camera_alt_outlined, size: 16, color: Colors.black87),
+                          SizedBox(width: 6),
+                          Text('Live Vision Setting', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _buildDropdownRow('Capture Frequency', _selectedFrequency, ['1 Hours', '2 Hours', '4 Hours'], (v) => setState(() => _selectedFrequency = v!)),
+                      const SizedBox(height: 8),
+                      _buildDropdownRow('Image Quality', _selectedQuality, ['Low', 'Medium', 'High'], (v) => setState(() => _selectedQuality = v!)),
+                    ],
+                  ),
+                ),
+
+                _buildFigmaPanel(
+                  panelColor,
+                  Column(
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(Icons.warning_amber_rounded, size: 16, color: Colors.redAccent),
+                          SizedBox(width: 6),
+                          Text('Manual Override Controls', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Enable Manual Mode', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          Switch(value: _isManualMode, activeColor: primaryGreen, onChanged: (v) => setState(() => _isManualMode = v)),
+                        ],
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Water Pump Control', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFC3BADB), 
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12), 
+                                side: const BorderSide(color: Colors.black38, width: 0.8)
+                              )
+                            ),
+                            onPressed: _isManualMode ? () {} : null,
+                            child: const Text('Activate Pump', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 12)),
+                          )
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                InkWell(
+                  onTap: () async {
+                    await Supabase.instance.client.auth.signOut();
+                    if (context.mounted) {
+                      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
+                    }
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFBAC596), 
+                      borderRadius: BorderRadius.circular(12), 
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 2))]
+                    ),
+                    child: const Text('LOG OUT', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
+                  ),
                 )
               ],
             ),
           ),
-          const SizedBox(height: 10),
-
-          InkWell(
-            onTap: () async {
-              await Supabase.instance.client.auth.signOut();
-              if (context.mounted) {
-                Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
-              }
-            },
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFBAC596), 
-                borderRadius: BorderRadius.circular(12), 
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 2))]
-              ),
-              child: const Text('LOG OUT', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
-            ),
-          )
         ],
       ),
     );
@@ -310,7 +334,7 @@ class _SettingScreenState extends State<SettingScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white, 
+        color: const Color(0xFFF9FBFA), 
         borderRadius: BorderRadius.circular(12), 
         border: Border.all(color: Colors.black12, width: 0.8)
       ),

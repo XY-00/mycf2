@@ -7,26 +7,29 @@ class AnalyticScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     const Color primaryDarkGreen = Color(0xFF2C4A3E); 
     const Color cardBg = Color(0xFFEAF2E8);
+    const Color softIvoryWhite = Color(0xFFF9FBFA); 
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // 👑 1, 2 & 3. 修改点：大标题顶栏去掉左侧 Icon 图像，纯字高质感呈现
+            // 👑 修改点 2：Title Bar 高度、大小、Padding 与 Home 页面完全一模一样，纯字完美居中
             Container(
               width: double.infinity,
               decoration: const BoxDecoration(
                 color: primaryDarkGreen, 
-                borderRadius: BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20)),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                ),
               ),
               child: SafeArea(
                 bottom: false,
                 child: Padding(
-                  padding: const EdgeInsets.only(left: 20.0, right: 20.0, top: 18.0, bottom: 18.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+                  padding: const EdgeInsets.only(left: 20.0, right: 20.0, top: 14.0, bottom: 16.0), // 👑 精准对齐 Home 页
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center, 
                     children: const [
                       Text(
                         'Analysis Report',
@@ -42,7 +45,7 @@ class AnalyticScreen extends StatelessWidget {
             Container(
               width: double.infinity, padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(color: softIvoryWhite, borderRadius: BorderRadius.circular(16)),
               child: Column(
                 children: [
                   Container(
@@ -96,7 +99,7 @@ class AnalyticScreen extends StatelessWidget {
             Container(
               width: double.infinity, padding: const EdgeInsets.all(14),
               margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black12)),
+              decoration: BoxDecoration(color: softIvoryWhite, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black12)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -125,7 +128,7 @@ class AnalyticScreen extends StatelessWidget {
                       Expanded(
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                          decoration: BoxDecoration(color: softIvoryWhite, borderRadius: BorderRadius.circular(12)),
                           child: Column(
                             children: const [
                               Text('3', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
@@ -138,7 +141,7 @@ class AnalyticScreen extends StatelessWidget {
                       Expanded(
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                          decoration: BoxDecoration(color: softIvoryWhite, borderRadius: BorderRadius.circular(12)),
                           child: Column(
                             children: const [
                               Text('100 %', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green)),

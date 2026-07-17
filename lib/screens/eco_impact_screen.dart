@@ -5,115 +5,152 @@ class EcoImpactScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const Color primaryGreen = Color(0xFF497E66);
+    const Color primaryGreen = Color(0xFF2C4A3E); 
     const Color containerBg = Color(0xFFF7F5EA);
+    const Color softIvoryWhite = Color(0xFFF9FBFA);
 
     return Scaffold(
-      backgroundColor: Colors.transparent, // 穿透共享 MainHolder 统一大背景
-      appBar: AppBar(
-        title: const Text('Eco Impact', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 20)),
-        centerTitle: true,
-        backgroundColor: primaryGreen,
-        elevation: 0,
-      ),
+      backgroundColor: Colors.transparent, 
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(14.0),
         child: Column(
           children: [
+            // 👑 Title Bar：左右 Padding 锁定 20.0 格式
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: containerBg, 
-                borderRadius: BorderRadius.circular(14), 
-                border: Border.all(color: Colors.black87),
+              decoration: const BoxDecoration(
+                color: primaryGreen, 
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                ),
               ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      const CircleAvatar(
-                        radius: 26,
-                        backgroundColor: primaryGreen,
-                        child: Icon(Icons.face_retouching_natural, color: Colors.white, size: 28),
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 20.0, right: 20.0, top: 14.0, bottom: 16.0), 
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center, 
+                    children: const [
+                      Text(
+                        'Eco Impact',
+                        style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3),
                       ),
-                      const SizedBox(width: 14),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text('Farmer: Lee Xin Yi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black)),
-                          SizedBox(height: 2),
-                          Text('UserID: FARM0027', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
-                        ],
-                      )
                     ],
                   ),
-                  const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Divider(color: Colors.black)),
-                  
-                  Stack(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircleAvatar(radius: 20, backgroundColor: primaryGreen.withOpacity(0.3), child: const Text('A', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black))),
-                          const SizedBox(width: 14),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Text('Eco Friendly Grade', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
-                              Text('Top 5% of Farmers', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black54)),
-                            ],
-                          ),
-                          const SizedBox(width: 40), 
-                        ],
-                      ),
-                      // 👑 核心修复点：将之前错误的 onPressed 改为标准的 onTap 参数，消灭编译错误
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Row(
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // 👑 Farmer 模块：左右 Margin 锁死 20.0，消除内缩落差
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0), // 👑 精准锁定 20.0
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: containerBg, 
+                      borderRadius: BorderRadius.circular(14), 
+                      border: Border.all(color: Colors.black87),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
                           children: [
-                            GestureDetector(
-                              onTap: () {}, // 👑 已经改为 onTap
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.black26)),
-                                child: const Icon(Icons.download_rounded, size: 14, color: primaryGreen),
-                              ),
+                            const CircleAvatar(
+                              radius: 26,
+                              backgroundColor: primaryGreen,
+                              child: Icon(Icons.face_retouching_natural, color: Colors.white, size: 28),
                             ),
-                            const SizedBox(width: 6),
-                            GestureDetector(
-                              onTap: () {}, // 👑 已经改为 onTap
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.black26)),
-                                child: const Icon(Icons.share_rounded, size: 14, color: primaryGreen),
-                              ),
-                            ),
+                            const SizedBox(width: 14),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: const [
+                                Text('Farmer: Lee Xin Yi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black)),
+                                SizedBox(height: 2),
+                                Text('UserID: FARM0027', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
+                              ],
+                            )
                           ],
                         ),
-                      )
-                    ],
+                        const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Divider(color: Colors.black)),
+                        
+                        Stack(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                CircleAvatar(radius: 20, backgroundColor: primaryGreen.withOpacity(0.3), child: const Text('A', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black))),
+                                const SizedBox(width: 14),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: const [
+                                    Text('Eco Friendly Grade', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
+                                    Text('Top 5% of Farmers', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black54)),
+                                  ],
+                                ),
+                                const SizedBox(width: 40), 
+                              ],
+                            ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Row(
+                                children: [
+                                  GestureDetector(
+                                    onTap: () {}, 
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.black26)),
+                                      child: const Icon(Icons.download_rounded, size: 14, color: primaryGreen),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  GestureDetector(
+                                    onTap: () {}, 
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.black26)),
+                                      child: const Icon(Icons.share_rounded, size: 14, color: primaryGreen),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(height: 6),
                 ],
               ),
             ),
             const SizedBox(height: 14),
 
-            Row(
-              children: [
-                _buildMetricBox('Total Carbon Footprint\nsaved (mg CO2e)', '146.0', Icons.eco_outlined),
-                const SizedBox(width: 8),
-                _buildMetricBox('Red-line success', '3 of 3\nIntervention', Icons.gps_fixed),
-                const SizedBox(width: 8),
-                _buildMetricBox('Total Water Saved\n(Liter)', '10.0', Icons.opacity),
-              ],
+            // 👑 三列度量盒子：横向 Padding 锁定 20.0
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0), // 👑 精准锁定 20.0
+              child: Row(
+                children: [
+                  _buildMetricBox('Total Carbon Footprint\nsaved (mg CO2e)', '146.0', Icons.eco_outlined),
+                  const SizedBox(width: 8),
+                  _buildMetricBox('Red-line success', '3 of 3\nIntervention', Icons.gps_fixed),
+                  const SizedBox(width: 8),
+                  _buildMetricBox('Total Water Saved\n(Liter)', '10.0', Icons.opacity),
+                ],
+              ),
             ),
             const SizedBox(height: 14),
 
+            // 👑 History 列表大板块：左右 Margin 精准锁定 20.0 贴边
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
+              margin: const EdgeInsets.symmetric(horizontal: 20.0), // 👑 精准锁定 20.0
               decoration: BoxDecoration(color: containerBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black87)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -151,6 +188,7 @@ class EcoImpactScreen extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -170,7 +208,7 @@ class EcoImpactScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 20, color: const Color(0xFF497E66)),
+                Icon(icon, size: 20, color: const Color(0xFF2C4A3E)),
                 const SizedBox(width: 4),
                 Text(value, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black)),
               ],

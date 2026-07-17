@@ -18,7 +18,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double _humidity = 55.0;
 
   String _userFullName = 'LEE XIN YI';
-
   RealtimeChannel? _statusSubscription;
 
   @override
@@ -59,9 +58,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               });
             }
           },
-        );
-    
-    _statusSubscription?.subscribe();
+        )
+        .subscribe();
   }
 
   @override
@@ -75,6 +73,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     const Color primaryDarkGreen = Color(0xFF2C4A3E); 
+    const Color softIvoryWhite = Color(0xFFF9FBFA); 
 
     return Scaffold(
       backgroundColor: Colors.transparent, 
@@ -82,7 +81,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 👑 Home 页面：左边保留人头像，换成舒服绿
             Container(
               width: double.infinity,
               decoration: const BoxDecoration(
@@ -103,7 +101,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       CircleAvatar(
                         radius: 22,
                         backgroundColor: Colors.white.withOpacity(0.2),
-                        child: const Icon(Icons.person, color: Colors.white, size: 22), // 保留头像
+                        child: const Icon(Icons.person, color: Colors.white, size: 22),
                       ),
                       const SizedBox(width: 14),
                       Column(
@@ -127,8 +125,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
 
+            // 👑 修改点 1：这里的 horizontal Padding 缩窄到 14.0，完美拉宽卡片，不再往里缩进
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              padding: const EdgeInsets.symmetric(horizontal: 14.0),
               child: Column(
                 children: [
                   const SizedBox(height: 14),
@@ -142,10 +141,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 14),
 
                   _buildOriginalCard(
-                    color: Colors.white,
+                    color: softIvoryWhite, 
                     child: Row(
                       children: [
-                        Image.asset('assets/my_ic_carbonfootprint.png', width: 36, height: 36, color: primaryDarkGreen, errorBuilder: (context, error, stackTrace) => const Icon(Icons.eco_outlined, size: 36, color: primaryDarkGreen)),
+                        Image.asset('assets/my_ic_carbonfootprint.png', width: 36, height: 36, color: primaryDarkGreen, errorBuilder: (c, e, s) => const Icon(Icons.eco_outlined, size: 36, color: primaryDarkGreen)),
                         const SizedBox(width: 14),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,7 +203,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
 
                   _buildOriginalCard(
-                    color: Colors.white,
+                    color: softIvoryWhite, 
                     child: ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.shield_outlined, size: 36, color: primaryDarkGreen),
@@ -230,7 +229,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildDHT11MiniCard(String title, String value, IconData icon, Color iconColor) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6, offset: const Offset(0, 3))]),
+      decoration: BoxDecoration(color: const Color(0xFFF9FBFA), borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6, offset: const Offset(0, 3))]),
       child: Row(
         children: [
           Icon(icon, color: iconColor, size: 22),
