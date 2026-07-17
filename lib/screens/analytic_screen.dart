@@ -21,6 +21,7 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
+            // Top Header Panel
             Container(
               width: double.infinity,
               decoration: const BoxDecoration(
@@ -44,6 +45,8 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
               ),
             ),
             const SizedBox(height: 14),
+            
+            // Tab Buttons
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
               child: Row(
@@ -64,7 +67,7 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
               decoration: BoxDecoration(
                 color: softIvoryWhite, 
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.black12), // 增加边框
+                border: Border.all(color: Colors.black12),
               ),
               child: Column(
                 children: [
@@ -112,14 +115,15 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
             ),
             const SizedBox(height: 16),
             
-            // Visual Health Validation Panel
+            // Visual Health Validation Panel (缩小高度，回归黄金比例)
             Container(
-              width: double.infinity, padding: const EdgeInsets.all(14),
+              width: double.infinity, 
+              padding: const EdgeInsets.all(14),
               margin: const EdgeInsets.symmetric(horizontal: 20.0), 
               decoration: BoxDecoration(
                 color: cardBg, 
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.black12), // 增加边框
+                border: Border.all(color: Colors.black12),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -132,14 +136,19 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
+                  // 🌟 重新精确修正：调整比例为 1.85，让它变回扁平精致的长方形，不再霸占整半个屏幕！
                   GridView.count(
-                    shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2, childAspectRatio: 2.3, mainAxisSpacing: 8, crossAxisSpacing: 8,
+                    shrinkWrap: true, 
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 2, 
+                    childAspectRatio: 1.85, // 刚刚好的高度比例，绝不臃肿
+                    mainAxisSpacing: 10,  
+                    crossAxisSpacing: 10, 
                     children: [
                       _buildGridItem('Leaf Color Analysis', _selectedPlantTab == 0 ? 'All channels normal' : 'Plant $_selectedPlantTab: Lush Green', Icons.spa_outlined),
-                      _buildGridItem('Growth Rate', _selectedPlantTab == 0 ? 'Avg: +2.1 cm / week' : 'Plant $_selectedPlantTab: +2.3 cm', Icons.stacked_line_chart),
+                      _buildGridItem('Growth Rate', _selectedPlantTab == 0 ? 'Avg: +2.1 cm / wk' : 'Plant $_selectedPlantTab: +2.3 cm', Icons.stacked_line_chart),
                       _buildGridItem('Moisture Status', _selectedPlantTab == 0 ? 'All sensors online' : 'Plant $_selectedPlantTab: Stable (65%)', Icons.opacity_outlined),
-                      _buildGridItem('System Performance', _selectedPlantTab == 0 ? 'Relays triggered: 3' : 'Pump $_selectedPlantTab active yesterday', Icons.notifications_active_outlined),
+                      _buildGridItem('System Performance', _selectedPlantTab == 0 ? 'Relays triggered: 3' : 'Pump $_selectedPlantTab active', Icons.notifications_active_outlined),
                     ],
                   )
                 ],
@@ -154,7 +163,7 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
               decoration: BoxDecoration(
                 color: softIvoryWhite, 
                 borderRadius: BorderRadius.circular(16), 
-                border: Border.all(color: Colors.black12), // 增加边框
+                border: Border.all(color: Colors.black12),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -177,7 +186,7 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
               decoration: BoxDecoration(
                 color: cardBg, 
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.black12), // 增加边框
+                border: Border.all(color: Colors.black12),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -192,7 +201,7 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
                           decoration: BoxDecoration(
                             color: softIvoryWhite, 
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.black12), // 添加小卡片内部微型细边框
+                            border: Border.all(color: Colors.black12),
                           ),
                           child: Column(
                             children: const [
@@ -209,7 +218,7 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
                           decoration: BoxDecoration(
                             color: softIvoryWhite, 
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.black12), // 添加小卡片内部微型细边框
+                            border: Border.all(color: Colors.black12),
                           ),
                           child: Column(
                             children: const [
@@ -261,33 +270,47 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
     );
   }
 
+  // 🌟 紧凑优雅布局：不强制上下死死拉开，让内部空间更舒服自然
   Widget _buildGridItem(String title, String desc, IconData icon) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white, 
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black12), // 为指标小卡片增加精细浅色边框
+        border: Border.all(color: Colors.black12), 
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start, 
+        mainAxisAlignment: MainAxisAlignment.center, // 居中紧凑排列，避免空洞和过度撑开
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center, 
             children: [
               Icon(icon, size: 14, color: const Color(0xFF497E66)),
-              const SizedBox(width: 4),
-              Flexible(child: Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF497E66)), overflow: TextOverflow.ellipsis)),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  title, 
+                  maxLines: 1, // 精准控制：1行标题配上1.85的比例在绝大多数手机上已经完美塞下且不换行
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF497E66)), 
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
-          Text(desc, style: const TextStyle(fontSize: 10, color: Colors.black54, height: 1.1), maxLines: 2, overflow: TextOverflow.ellipsis),
+          Text(
+            desc, 
+            style: const TextStyle(fontSize: 10, color: Colors.black54, height: 1.1), 
+            maxLines: 1, 
+            overflow: TextOverflow.ellipsis
+          ),
         ],
       ),
     );
   }
 }
 
-// CustomPainter 保留原逻辑不变
 class CompleteAxisTrendPainter extends CustomPainter {
   final int selectedTab;
   CompleteAxisTrendPainter({required this.selectedTab});
@@ -325,7 +348,7 @@ class CompleteAxisTrendPainter extends CustomPainter {
     }
     if (selectedTab == 0 || selectedTab == 2) {
       final p2 = Paint()..color = Colors.blueAccent..strokeWidth = 2.0..style = PaintingStyle.stroke;
-      final path2 = Path()..moveTo(leftPadding, chartHeight * 0.5)..lineTo(leftPadding + chartWidth * 0.25, chartHeight * 0.3)..lineTo(leftPadding + chartWidth * 0.5, chartHeight * 0.45)..lineTo(leftPadding + chartWidth * 0.75, chartHeight * 0.2)..lineTo(size.width, chartHeight * 0.35);
+      final path2 = Path()..moveTo(leftPadding, chartHeight * 0.5)..lineTo(leftPadding + chartWidth * 0.25, chartHeight * 0.3)..lineTo(leftPadding + chartWidth * 0.45, chartHeight * 0.45)..lineTo(leftPadding + chartWidth * 0.75, chartHeight * 0.2)..lineTo(size.width, chartHeight * 0.35);
       canvas.drawPath(path2, p2);
     }
     if (selectedTab == 0 || selectedTab == 3) {
