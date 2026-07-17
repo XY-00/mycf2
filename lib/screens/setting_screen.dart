@@ -16,10 +16,16 @@ class _SettingScreenState extends State<SettingScreen> {
   String _selectedInterval = '10 min';
   String _selectedFrequency = '1 Hours';
   String _selectedQuality = 'Medium';
-
   String _profileName = 'Lee Xin Yi';
   String _profileId = 'FARM0027';
   bool _isIdLockedOnce = false; 
+
+  final Map<String, bool> _hardwareStatus = {
+    'Raspberry Pi 4B 主机': true,
+    'DHT11 温湿度传感器': true,
+    'ADS1115 16位模数模组': true,
+    '5V 继电器 & 抽水泵群': true,
+  };
 
   void _openProfileEditSheet() {
     final nameCtrl = TextEditingController(text: _profileName);
@@ -43,7 +49,7 @@ class _SettingScreenState extends State<SettingScreen> {
               controller: idCtrl,
               enabled: !_isIdLockedOnce, 
               decoration: InputDecoration(
-                labelText: _isIdLockedOnce ? 'User ID (Locked - Already changed once)' : 'Edit User ID (Can change once ONLY)',
+                labelText: _isIdLockedOnce ? 'User ID (Locked)' : 'Edit User ID (Can change once ONLY)',
                 border: const OutlineInputBorder(),
                 filled: _isIdLockedOnce,
                 fillColor: Colors.black12,
@@ -83,7 +89,6 @@ class _SettingScreenState extends State<SettingScreen> {
       backgroundColor: Colors.transparent,
       body: Column(
         children: [
-          // 👑 Title Bar: 左右 Padding 锁定 20.0
           Container(
             width: double.infinity,
             decoration: const BoxDecoration(
@@ -100,41 +105,58 @@ class _SettingScreenState extends State<SettingScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center, 
                   children: const [
-                    Text(
-                      'Setting',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 21, letterSpacing: -0.3),
-                    ),
+                    Text('Setting', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 21, letterSpacing: -0.3)),
                   ],
                 ),
               ),
             ),
           ),
-
           Expanded(
             child: ListView(
-              // 👑 修改点 1：将横向内边距从 14 强制锁死为 20.0，卡片完美延展，对齐上下沿！
-              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 14.0),
+              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 14.0), 
               children: [
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(
-                    color: softIvoryWhite, 
-                    borderRadius: BorderRadius.circular(16), 
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 4)]
+                _buildFigmaPanel(
+                  panelColor,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(Icons.router_rounded, size: 16, color: primaryGreen),
+                          SizedBox(width: 6),
+                          Text('Hardware & Sensors Connection Center', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      ..._hardwareStatus.entries.map((entry) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(entry.key, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            Row(
+                              children: [
+                                Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: entry.value ? Colors.green : Colors.red)),
+                                const SizedBox(width: 4),
+                                Text(entry.value ? 'Online' : 'Offline / Error', style: TextStyle(fontSize: 11, color: entry.value ? Colors.green : Colors.red, fontWeight: FontWeight.bold)),
+                              ],
+                            )
+                          ],
+                        ),
+                      )).toList(),
+                    ],
                   ),
+                ),
+                Container(
+                  width: double.infinity, margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(color: softIvoryWhite, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 4)]),
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: _openProfileEditSheet, 
+                    borderRadius: BorderRadius.circular(16), onTap: _openProfileEditSheet, 
                     child: Padding(
                       padding: const EdgeInsets.all(14.0),
                       child: Row(
                         children: [
-                          const CircleAvatar(
-                            radius: 24, 
-                            backgroundColor: primaryGreen, 
-                            child: Icon(Icons.person, color: Colors.white, size: 22)
-                          ),
+                          const CircleAvatar(radius: 24, backgroundColor: primaryGreen, child: Icon(Icons.person, color: Colors.white, size: 22)),
                           const SizedBox(width: 14),
                           Expanded(
                             child: Column(
@@ -142,7 +164,7 @@ class _SettingScreenState extends State<SettingScreen> {
                               children: [
                                 Text(_profileName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
                                 const SizedBox(height: 3),
-                                Text('User ID: $_profileId (Click to edit name/avatar)', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                Text('User ID: $_profileId', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                               ],
                             ),
                           ),
@@ -152,7 +174,6 @@ class _SettingScreenState extends State<SettingScreen> {
                     ),
                   ),
                 ),
-
                 _buildFigmaPanel(
                   panelColor,
                   Column(
@@ -182,17 +203,12 @@ class _SettingScreenState extends State<SettingScreen> {
                         ],
                       ),
                       Slider(
-                        value: _redLineTarget,
-                        min: 0,
-                        max: 100,
-                        activeColor: primaryGreen,
-                        inactiveColor: Colors.black12,
+                        value: _redLineTarget, min: 0, max: 100, activeColor: primaryGreen, inactiveColor: Colors.black12,
                         onChanged: (val) => setState(() => _redLineTarget = val),
                       ),
                     ],
                   ),
                 ),
-
                 _buildFigmaPanel(
                   panelColor,
                   Column(
@@ -211,7 +227,6 @@ class _SettingScreenState extends State<SettingScreen> {
                     ],
                   ),
                 ),
-
                 _buildFigmaPanel(
                   panelColor,
                   Column(
@@ -220,7 +235,7 @@ class _SettingScreenState extends State<SettingScreen> {
                         children: const [
                           Icon(Icons.camera_alt_outlined, size: 16, color: Colors.black87),
                           SizedBox(width: 6),
-                          Text('Live Vision Setting', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
+                          Text('Live Vision Setting (Storage Save)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -230,7 +245,6 @@ class _SettingScreenState extends State<SettingScreen> {
                     ],
                   ),
                 ),
-
                 _buildFigmaPanel(
                   panelColor,
                   Column(
@@ -255,13 +269,7 @@ class _SettingScreenState extends State<SettingScreen> {
                         children: [
                           const Text('Water Pump Control', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                           ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFC3BADB), 
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12), 
-                                side: const BorderSide(color: Colors.black38, width: 0.8)
-                              )
-                            ),
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC3BADB), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.black38, width: 0.8))),
                             onPressed: _isManualMode ? () {} : null,
                             child: const Text('Activate Pump', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 12)),
                           )
@@ -271,7 +279,6 @@ class _SettingScreenState extends State<SettingScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-
                 InkWell(
                   onTap: () async {
                     await Supabase.instance.client.auth.signOut();
@@ -280,13 +287,8 @@ class _SettingScreenState extends State<SettingScreen> {
                     }
                   },
                   child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFBAC596), 
-                      borderRadius: BorderRadius.circular(12), 
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 2))]
-                    ),
+                    width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(color: const Color(0xFFBAC596), borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 2))]),
                     child: const Text('LOG OUT', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
                   ),
                 )
@@ -300,16 +302,8 @@ class _SettingScreenState extends State<SettingScreen> {
 
   Widget _buildFigmaPanel(Color bg, Widget child) {
     return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: bg, 
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 3))
-        ]
-      ),
+      width: double.infinity, margin: const EdgeInsets.only(bottom: 14), padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 3))]),
       child: child,
     );
   }
@@ -317,13 +311,8 @@ class _SettingScreenState extends State<SettingScreen> {
   Widget _buildModeBtn(String label, bool isActive) {
     return Expanded(
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 2),
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? const Color(0xFFBAC596) : Colors.transparent, 
-          border: Border.all(color: Colors.black38, width: 0.8), 
-          borderRadius: BorderRadius.circular(8)
-        ),
+        margin: const EdgeInsets.symmetric(horizontal: 2), padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(color: isActive ? const Color(0xFFBAC596) : Colors.transparent, border: Border.all(color: Colors.black38, width: 0.8), borderRadius: BorderRadius.circular(8)),
         child: Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
       ),
     );
@@ -331,13 +320,8 @@ class _SettingScreenState extends State<SettingScreen> {
 
   Widget _buildDropdownRow(String label, String value, List<String> options, ValueChanged<String?> onChanged) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF9FBFA), 
-        borderRadius: BorderRadius.circular(12), 
-        border: Border.all(color: Colors.black12, width: 0.8)
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2), margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(color: const Color(0xFFF9FBFA), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.black12, width: 0.8)),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [

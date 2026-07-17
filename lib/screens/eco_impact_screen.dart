@@ -5,7 +5,7 @@ class EcoImpactScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const Color primaryGreen = Color(0xFF2C4A3E); 
+    const Color primaryDarkGreen = Color(0xFF2C4A3E); 
     const Color containerBg = Color(0xFFF7F5EA);
     const Color softIvoryWhite = Color(0xFFF9FBFA);
 
@@ -14,11 +14,10 @@ class EcoImpactScreen extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // 👑 Title Bar：左右 Padding 锁定 20.0 格式
             Container(
               width: double.infinity,
               decoration: const BoxDecoration(
-                color: primaryGreen, 
+                color: primaryDarkGreen, 
                 borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(20),
                   bottomRight: Radius.circular(20),
@@ -31,38 +30,30 @@ class EcoImpactScreen extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center, 
                     children: const [
-                      Text(
-                        'Eco Impact',
-                        style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3),
-                      ),
+                      Text('Eco Impact', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3)),
                     ],
                   ),
                 ),
               ),
             ),
             const SizedBox(height: 14),
-
-            // 👑 Farmer 模块：左右 Margin 锁死 20.0，消除内缩落差
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0), // 👑 精准锁定 20.0
+              padding: const EdgeInsets.symmetric(horizontal: 20.0), 
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: containerBg, 
-                      borderRadius: BorderRadius.circular(14), 
-                      border: Border.all(color: Colors.black87),
-                    ),
+                    decoration: BoxDecoration(color: containerBg, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.black87)),
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start, 
                       children: [
                         Row(
                           children: [
                             const CircleAvatar(
                               radius: 26,
-                              backgroundColor: primaryGreen,
+                              backgroundColor: primaryDarkGreen,
                               child: Icon(Icons.face_retouching_natural, color: Colors.white, size: 28),
                             ),
                             const SizedBox(width: 14),
@@ -77,13 +68,12 @@ class EcoImpactScreen extends StatelessWidget {
                           ],
                         ),
                         const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Divider(color: Colors.black)),
-                        
                         Stack(
                           children: [
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisAlignment: MainAxisAlignment.start, 
                               children: [
-                                CircleAvatar(radius: 20, backgroundColor: primaryGreen.withOpacity(0.3), child: const Text('A', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black))),
+                                CircleAvatar(radius: 20, backgroundColor: primaryDarkGreen.withOpacity(0.3), child: const Text('A', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black))),
                                 const SizedBox(width: 14),
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -92,7 +82,6 @@ class EcoImpactScreen extends StatelessWidget {
                                     Text('Top 5% of Farmers', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black54)),
                                   ],
                                 ),
-                                const SizedBox(width: 40), 
                               ],
                             ),
                             Positioned(
@@ -103,18 +92,18 @@ class EcoImpactScreen extends StatelessWidget {
                                   GestureDetector(
                                     onTap: () {}, 
                                     child: Container(
-                                      padding: const EdgeInsets.all(4),
+                                      padding: const EdgeInsets.all(5),
                                       decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.black26)),
-                                      child: const Icon(Icons.download_rounded, size: 14, color: primaryGreen),
+                                      child: const Icon(Icons.download_rounded, size: 14, color: primaryDarkGreen),
                                     ),
                                   ),
                                   const SizedBox(width: 6),
                                   GestureDetector(
                                     onTap: () {}, 
                                     child: Container(
-                                      padding: const EdgeInsets.all(4),
+                                      padding: const EdgeInsets.all(5),
                                       decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.black26)),
-                                      child: const Icon(Icons.share_rounded, size: 14, color: primaryGreen),
+                                      child: const Icon(Icons.share_rounded, size: 14, color: primaryDarkGreen),
                                     ),
                                   ),
                                 ],
@@ -125,15 +114,12 @@ class EcoImpactScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 6),
                 ],
               ),
             ),
             const SizedBox(height: 14),
-
-            // 👑 三列度量盒子：横向 Padding 锁定 20.0
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0), // 👑 精准锁定 20.0
+              padding: const EdgeInsets.symmetric(horizontal: 20.0), 
               child: Row(
                 children: [
                   _buildMetricBox('Total Carbon Footprint\nsaved (mg CO2e)', '146.0', Icons.eco_outlined),
@@ -145,17 +131,15 @@ class EcoImpactScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 14),
-
-            // 👑 History 列表大板块：左右 Margin 精准锁定 20.0 贴边
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
-              margin: const EdgeInsets.symmetric(horizontal: 20.0), // 👑 精准锁定 20.0
+              margin: const EdgeInsets.symmetric(horizontal: 20.0), 
               decoration: BoxDecoration(color: containerBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black87)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Center(child: Text('History', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black))),
+                  const Center(child: Text('History Record (Harvested)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black))),
                   const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
