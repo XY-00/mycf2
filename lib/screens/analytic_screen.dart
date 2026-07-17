@@ -56,10 +56,16 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
               ),
             ),
             const SizedBox(height: 10),
+            
+            // Live Camera Container
             Container(
               width: double.infinity, padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.symmetric(horizontal: 20.0), 
-              decoration: BoxDecoration(color: softIvoryWhite, borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(
+                color: softIvoryWhite, 
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.black12), // 增加边框
+              ),
               child: Column(
                 children: [
                   LayoutBuilder(
@@ -80,7 +86,7 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), 
                                 decoration: BoxDecoration(color: const Color(0xFF5CB85C), borderRadius: BorderRadius.circular(12)), 
-                                child: const Text('• LIVE CAMERA', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                child: const Text('LIVE CAMERA', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                               ),
                             ),
                             if (_selectedPlantTab == 0 || _selectedPlantTab == 1)
@@ -89,7 +95,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
                               Positioned(top: 45, left: 8 + boxWidth + 8, child: _cvBox('plant 2', boxWidth, 110)),
                             if (_selectedPlantTab == 0 || _selectedPlantTab == 3)
                               Positioned(top: 45, left: 8 + (boxWidth * 2) + 16, child: _cvBox('plant 3', boxWidth, 110)),
-
                             Positioned(
                               bottom: 8, left: 12, 
                               child: Container(
@@ -106,10 +111,16 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            
+            // Visual Health Validation Panel
             Container(
               width: double.infinity, padding: const EdgeInsets.all(14),
               margin: const EdgeInsets.symmetric(horizontal: 20.0), 
-              decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(
+                color: cardBg, 
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.black12), // 增加边框
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -135,14 +146,20 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            
+            // Moisture Trend Panel
             Container(
               width: double.infinity, padding: const EdgeInsets.all(14),
               margin: const EdgeInsets.symmetric(horizontal: 20.0), 
-              decoration: BoxDecoration(color: softIvoryWhite, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black12)),
+              decoration: BoxDecoration(
+                color: softIvoryWhite, 
+                borderRadius: BorderRadius.circular(16), 
+                border: Border.all(color: Colors.black12), // 增加边框
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('📈 24-Hour Moisture Trend (${_selectedPlantTab == 0 ? "Overview" : "Plant $_selectedPlantTab"})', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
+                  Text('  24-Hour Moisture Trend (${_selectedPlantTab == 0 ? "Overview" : "Plant $_selectedPlantTab"})', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
                   const SizedBox(height: 16),
                   SizedBox(
                     height: 150, width: double.infinity,
@@ -152,10 +169,16 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            
+            // Carbon Protection Panel
             Container(
               width: double.infinity, padding: const EdgeInsets.all(14),
               margin: const EdgeInsets.symmetric(horizontal: 20.0), 
-              decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(
+                color: cardBg, 
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.black12), // 增加边框
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -166,7 +189,11 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
                       Expanded(
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(color: softIvoryWhite, borderRadius: BorderRadius.circular(12)),
+                          decoration: BoxDecoration(
+                            color: softIvoryWhite, 
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.black12), // 添加小卡片内部微型细边框
+                          ),
                           child: Column(
                             children: const [
                               Text('3', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
@@ -179,7 +206,11 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
                       Expanded(
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(color: softIvoryWhite, borderRadius: BorderRadius.circular(12)),
+                          decoration: BoxDecoration(
+                            color: softIvoryWhite, 
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.black12), // 添加小卡片内部微型细边框
+                          ),
                           child: Column(
                             children: const [
                               Text('100 %', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.green)),
@@ -233,7 +264,11 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
   Widget _buildGridItem(String title, String desc, IconData icon) {
     return Container(
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: Colors.white, 
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.black12), // 为指标小卡片增加精细浅色边框
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -252,43 +287,37 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
   }
 }
 
+// CustomPainter 保留原逻辑不变
 class CompleteAxisTrendPainter extends CustomPainter {
   final int selectedTab;
   CompleteAxisTrendPainter({required this.selectedTab});
-
   @override
   void paint(Canvas canvas, Size size) {
     final axisPaint = Paint()..color = Colors.black87..strokeWidth = 1.2..style = PaintingStyle.stroke;
     final gridPaint = Paint()..color = Colors.black12..strokeWidth = 0.5..style = PaintingStyle.stroke;
     final dashPaint = Paint()..color = Colors.redAccent..strokeWidth = 1.2..style = PaintingStyle.stroke;
-
     double leftPadding = 42.0; double bottomPadding = 25.0;
     double chartWidth = size.width - leftPadding; double chartHeight = size.height - bottomPadding;
-
     canvas.drawLine(Offset(leftPadding, 0), Offset(leftPadding, chartHeight), axisPaint);
     canvas.drawLine(Offset(leftPadding, chartHeight), Offset(size.width, chartHeight), axisPaint);
-
     List<String> yLabels = ['100%', '75%', '50%', '25%', '0%'];
     for (int i = 0; i < yLabels.length; i++) {
       double yPos = (chartHeight / (yLabels.length - 1)) * i;
       canvas.drawLine(Offset(leftPadding, yPos), Offset(size.width, yPos), gridPaint);
       TextPainter(text: TextSpan(text: yLabels[i], style: const TextStyle(color: Colors.black54, fontSize: 9)), textDirection: TextDirection.ltr)..layout()..paint(canvas, Offset(5, yPos - 6));
     }
-
     double y59Pos = chartHeight * (1.0 - 0.59);
     double stepWidth = 5; double stepSpace = 4; double currentX = leftPadding;
     while (currentX < size.width) {
       canvas.drawLine(Offset(currentX, y59Pos), Offset(currentX + stepWidth, y59Pos), dashPaint);
       currentX += stepWidth + stepSpace;
     }
-
     List<String> xLabels = ['1100', '1200', '1300', '1400', '1500'];
     for (int i = 0; i < xLabels.length; i++) {
       double xPos = leftPadding + (chartWidth / (xLabels.length - 1)) * i;
       canvas.drawLine(Offset(xPos, 0), Offset(xPos, chartHeight), gridPaint);
       TextPainter(text: TextSpan(text: xLabels[i], style: const TextStyle(color: Colors.black54, fontSize: 9)), textDirection: TextDirection.ltr)..layout()..paint(canvas, Offset(xPos - 12, chartHeight + 6));
     }
-
     if (selectedTab == 0 || selectedTab == 1) {
       final p1 = Paint()..color = const Color(0xFF5CB85C)..strokeWidth = 2.5..style = PaintingStyle.stroke;
       final path1 = Path()..moveTo(leftPadding, chartHeight * 0.38)..lineTo(leftPadding + chartWidth * 0.25, chartHeight * 0.5)..lineTo(leftPadding + chartWidth * 0.5, chartHeight * 0.18)..lineTo(leftPadding + chartWidth * 0.75, chartHeight * 0.33)..lineTo(size.width, chartHeight * 0.42);
@@ -305,7 +334,6 @@ class CompleteAxisTrendPainter extends CustomPainter {
       canvas.drawPath(path3, p3);
     }
   }
-
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

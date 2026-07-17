@@ -127,6 +127,58 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
                   const SizedBox(height: 14),
+                  
+                  // Total Carbon Footprint Saved Card
+                  _buildCard(softIvoryWhite, Row(
+                    children: [
+                      const Icon(Icons.eco_outlined, size: 36, color: primaryDarkGreen),
+                      const SizedBox(width: 14),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Total Carbon Footprint Saved', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black54)),
+                          const SizedBox(height: 4),
+                          Text('$_carbonSaved mg CO₂ e', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
+                        ],
+                      )
+                    ],
+                  )),
+                  
+                  // Plant Hydration Card
+                  _buildCard(const Color(0xFFEAF2E8), Column(
+                    children: [
+                      const SizedBox(height: 10),
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(height: 110, width: 110, child: CircularProgressIndicator(value: _moisture / 100, strokeWidth: 10, backgroundColor: Colors.white.withOpacity(0.5), color: const Color(0xFF5CB85C))),
+                          Text('$_moisture', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      const Text('Plant Hydration (%)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      const SizedBox(height: 6),
+                    ],
+                  )),
+                  
+                  // Carbon Stability Card
+                  _buildCard(const Color(0xFFFDECEB), Column(
+                    children: [
+                      const SizedBox(height: 10),
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(height: 100, width: 100, child: CircularProgressIndicator(value: _stabilityScore / 100, strokeWidth: 8, backgroundColor: Colors.white.withOpacity(0.5), color: const Color(0xFFEC5B5B))),
+                          Text('$_stabilityScore / 100', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      const Text('Carbon Stability Score', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      const SizedBox(height: 6),
+                    ],
+                  )),
+                  
+                  // Water Tank Storage (Float Sensor) Card
                   _buildCard(
                     _isWaterLevelNormal ? softIvoryWhite : const Color(0xFFFCE8E6),
                     Column(
@@ -167,61 +219,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ],
                     ),
                   ),
-                  _buildCard(softIvoryWhite, Row(
-                    children: [
-                      const Icon(Icons.eco_outlined, size: 36, color: primaryDarkGreen),
-                      const SizedBox(width: 14),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Total Carbon Footprint Saved', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black54)),
-                          const SizedBox(height: 4),
-                          Text('$_carbonSaved mg CO₂ e', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
-                        ],
-                      )
-                    ],
-                  )),
-                  _buildCard(const Color(0xFFEAF2E8), Column(
-                    children: [
-                      const SizedBox(height: 10),
-                      Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          SizedBox(height: 110, width: 110, child: CircularProgressIndicator(value: _moisture / 100, strokeWidth: 10, backgroundColor: Colors.white.withOpacity(0.5), color: const Color(0xFF5CB85C))),
-                          Text('$_moisture', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      const Text('Plant Hydration (%)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      const SizedBox(height: 6),
-                    ],
-                  )),
-                  _buildCard(const Color(0xFFFDECEB), Column(
-                    children: [
-                      const SizedBox(height: 10),
-                      Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          SizedBox(height: 100, width: 100, child: CircularProgressIndicator(value: _stabilityScore / 100, strokeWidth: 8, backgroundColor: Colors.white.withOpacity(0.5), color: const Color(0xFFEC5B5B))),
-                          Text('$_stabilityScore / 100', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      const Text('Carbon Stability Score', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      const SizedBox(height: 6),
-                    ],
-                  )),
-                  _buildCard(softIvoryWhite, ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.shield_outlined, size: 36, color: primaryDarkGreen),
-                    title: const Text('Active Policy', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-                    subtitle: const Text('Status: Carbon Guarding', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      decoration: BoxDecoration(color: _policyStatus == 'RED' ? Colors.redAccent : (_policyStatus == 'YELLOW' ? Colors.orange : const Color(0xFF66BB6A)), borderRadius: BorderRadius.circular(12)),
-                      child: Text(_policyStatus, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                    ),
-                  )),
                   const SizedBox(height: 20),
                 ],
               ),
@@ -235,7 +232,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _miniCard(String title, String value, IconData icon, Color iconColor) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: const Color(0xFFF9FBFA), borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6, offset: const Offset(0, 3))]),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FBFA), 
+        borderRadius: BorderRadius.circular(16), 
+        border: Border.all(color: Colors.black12), // 添加统一边框
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6, offset: const Offset(0, 3))],
+      ),
       child: Row(
         children: [
           Icon(icon, color: iconColor, size: 22),
@@ -255,8 +257,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildCard(Color color, Widget child) {
     return Container(
-      width: double.infinity, margin: const EdgeInsets.only(bottom: 14), padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6, offset: const Offset(0, 3))]),
+      width: double.infinity, 
+      margin: const EdgeInsets.only(bottom: 14), 
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color, 
+        borderRadius: BorderRadius.circular(16), 
+        border: Border.all(color: Colors.black12), // 为主卡片添加高颜值全英文浅色统一边框
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6, offset: const Offset(0, 3))],
+      ),
       child: child,
     );
   }

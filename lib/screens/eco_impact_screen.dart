@@ -7,7 +7,6 @@ class EcoImpactScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     const Color primaryDarkGreen = Color(0xFF2C4A3E); 
     const Color containerBg = Color(0xFFF7F5EA);
-    const Color softIvoryWhite = Color(0xFFF9FBFA);
 
     return Scaffold(
       backgroundColor: Colors.transparent, 
@@ -42,10 +41,15 @@ class EcoImpactScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
+                  // Farmer Profile Card
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: containerBg, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.black87)),
+                    decoration: BoxDecoration(
+                      color: containerBg, 
+                      borderRadius: BorderRadius.circular(14), 
+                      border: Border.all(color: Colors.black12), // 改为更细腻的浅色统一边框
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start, 
                       children: [
@@ -61,13 +65,13 @@ class EcoImpactScreen extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: const [
                                 Text('Farmer: Lee Xin Yi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black)),
-                                SizedBox(height: 2),
+                                  SizedBox(height: 2),
                                 Text('UserID: FARM0027', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
                               ],
                             )
                           ],
                         ),
-                        const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Divider(color: Colors.black)),
+                        const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Divider(color: Colors.black12)),
                         Stack(
                           children: [
                             Row(
@@ -93,7 +97,7 @@ class EcoImpactScreen extends StatelessWidget {
                                     onTap: () {}, 
                                     child: Container(
                                       padding: const EdgeInsets.all(5),
-                                      decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.black26)),
+                                      decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.black12)),
                                       child: const Icon(Icons.download_rounded, size: 14, color: primaryDarkGreen),
                                     ),
                                   ),
@@ -102,7 +106,7 @@ class EcoImpactScreen extends StatelessWidget {
                                     onTap: () {}, 
                                     child: Container(
                                       padding: const EdgeInsets.all(5),
-                                      decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.black26)),
+                                      decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.black12)),
                                       child: const Icon(Icons.share_rounded, size: 14, color: primaryDarkGreen),
                                     ),
                                   ),
@@ -131,11 +135,17 @@ class EcoImpactScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 14),
+            
+            // History Record Main Base
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               margin: const EdgeInsets.symmetric(horizontal: 20.0), 
-              decoration: BoxDecoration(color: containerBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black87)),
+              decoration: BoxDecoration(
+                color: containerBg, 
+                borderRadius: BorderRadius.circular(16), 
+                border: Border.all(color: Colors.black12), // 更改为细腻一致浅边框
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -184,7 +194,11 @@ class EcoImpactScreen extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
         height: 110,
-        decoration: BoxDecoration(color: const Color(0xFFF7F5EA), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.black87)),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F5EA), 
+          borderRadius: BorderRadius.circular(12), 
+          border: Border.all(color: Colors.black12), // 统一卡片边框
+        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -207,7 +221,11 @@ class EcoImpactScreen extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 3),
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-      decoration: BoxDecoration(color: const Color(0xFFD6E4DA), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(
+        color: const Color(0xFFD6E4DA), 
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.black12), // 新增边框以确保整体格调
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -223,7 +241,11 @@ class EcoImpactScreen extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 2),
       padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-      decoration: BoxDecoration(color: Colors.transparent, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.black87)),
+      decoration: BoxDecoration(
+        color: Colors.transparent, 
+        borderRadius: BorderRadius.circular(8), 
+        border: Border.all(color: Colors.black12), // 改为 Colors.black12 精细浅色边框
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -238,7 +260,11 @@ class EcoImpactScreen extends StatelessWidget {
   Widget _buildActionBtn(String text) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(color: const Color(0xFFA2B5A9), borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(
+        color: const Color(0xFFA2B5A9), 
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.black12), // 按钮也增加呼应的外边框
+      ),
       child: Text(text, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87)),
     );
   }

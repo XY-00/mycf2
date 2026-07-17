@@ -21,10 +21,10 @@ class _SettingScreenState extends State<SettingScreen> {
   bool _isIdLockedOnce = false; 
 
   final Map<String, bool> _hardwareStatus = {
-    'Raspberry Pi 4B 主机': true,
-    'DHT11 温湿度传感器': true,
-    'ADS1115 16位模数模组': true,
-    '5V 继电器 & 抽水泵群': true,
+    'Raspberry Pi 4B Host': true,
+    'DHT11 Temp & Humidity Sensor': true,
+    'ADS1115 (Soil Moisture Sensors Hub))': true,
+    '5V Relay & Water Pump Group': true,
   };
 
   void _openProfileEditSheet() {
@@ -82,13 +82,13 @@ class _SettingScreenState extends State<SettingScreen> {
   @override
   Widget build(BuildContext context) {
     const Color primaryGreen = Color(0xFF2C4A3E); 
-    const Color panelColor = Color(0xFFF7F5EA);
     const Color softIvoryWhite = Color(0xFFF9FBFA); 
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Column(
         children: [
+          // Top Header
           Container(
             width: double.infinity,
             decoration: const BoxDecoration(
@@ -105,53 +105,32 @@ class _SettingScreenState extends State<SettingScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center, 
                   children: const [
-                    Text('Setting', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 21, letterSpacing: -0.3)),
+                    Text('Settings', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 21, letterSpacing: -0.3)),
                   ],
                 ),
               ),
             ),
           ),
+          
+          // Scrollable Settings List
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 14.0), 
               children: [
-                _buildFigmaPanel(
-                  panelColor,
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: const [
-                          Icon(Icons.router_rounded, size: 16, color: primaryGreen),
-                          SizedBox(width: 6),
-                          Text('Hardware & Sensors Connection Center', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      ..._hardwareStatus.entries.map((entry) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(entry.key, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                            Row(
-                              children: [
-                                Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: entry.value ? Colors.green : Colors.red)),
-                                const SizedBox(width: 4),
-                                Text(entry.value ? 'Online' : 'Offline / Error', style: TextStyle(fontSize: 11, color: entry.value ? Colors.green : Colors.red, fontWeight: FontWeight.bold)),
-                              ],
-                            )
-                          ],
-                        ),
-                      )).toList(),
-                    ],
-                  ),
-                ),
+                
+                // --- USER ACCOUNT SECTION ---
+                _buildSectionTitle('USER ACCOUNT'),
                 Container(
-                  width: double.infinity, margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(color: softIvoryWhite, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 4)]),
+                  width: double.infinity, 
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: softIvoryWhite, 
+                    borderRadius: BorderRadius.circular(16), 
+                    border: Border.all(color: Colors.black12),
+                  ),
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(16), onTap: _openProfileEditSheet, 
+                    borderRadius: BorderRadius.circular(16), 
+                    onTap: _openProfileEditSheet, 
                     child: Padding(
                       padding: const EdgeInsets.all(14.0),
                       child: Row(
@@ -174,111 +153,125 @@ class _SettingScreenState extends State<SettingScreen> {
                     ),
                   ),
                 ),
-                _buildFigmaPanel(
-                  panelColor,
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+
+                // --- HARDWARE & SENSORS SECTION ---
+                _buildSectionTitle('HARDWARE & SENSORS'),
+                _buildGroupPanel([
+                  Row(
+                    children: const [
+                      Icon(Icons.router_rounded, size: 16, color: primaryGreen),
+                      SizedBox(width: 6),
+                      Text('System Connection Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ..._hardwareStatus.entries.map((entry) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(entry.key, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87)),
+                        Row(
+                          children: [
+                            Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: entry.value ? Colors.green : Colors.red)),
+                            const SizedBox(width: 6),
+                            Text(entry.value ? 'Online' : 'Offline / Error', style: TextStyle(fontSize: 11, color: entry.value ? Colors.green : Colors.red, fontWeight: FontWeight.bold)),
+                          ],
+                        )
+                      ],
+                    ),
+                  )).toList(),
+                ]),
+
+                // --- OPERATION & CONTROL SECTION ---
+                _buildSectionTitle('OPERATION & CONTROL'),
+                _buildGroupPanel([
+                  Row(
+                    children: const [
+                      Icon(Icons.shutter_speed, size: 16, color: primaryGreen),
+                      SizedBox(width: 6),
+                      Text('System Automation Mode', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
                     children: [
-                      Row(
-                        children: const [
-                          Icon(Icons.shutter_speed, size: 16, color: primaryGreen),
-                          SizedBox(width: 6),
-                          Text('Operation Mode Controls', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          _buildModeBtn('Full Auto', true),
-                          _buildModeBtn('Semi Auto', false),
-                          _buildModeBtn('Power Save', false),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(children: const [Icon(Icons.waves, size: 14), SizedBox(width: 4), Text('Carbon Red-line Target Controls', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold))]),
-                          Text('${_redLineTarget.toStringAsFixed(1)} %', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                      Slider(
-                        value: _redLineTarget, min: 0, max: 100, activeColor: primaryGreen, inactiveColor: Colors.black12,
-                        onChanged: (val) => setState(() => _redLineTarget = val),
+                      _buildModeBtn('Full Auto', true),
+                      _buildModeBtn('Semi Auto', false),
+                      _buildModeBtn('Power Save', false),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(children: const [Icon(Icons.waves, size: 14, color: Colors.black54), SizedBox(width: 4), Text('Carbon Red-line Target', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87))]),
+                      Text('${_redLineTarget.toStringAsFixed(1)} %', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
+                    ],
+                  ),
+                  Slider(
+                    value: _redLineTarget, min: 0, max: 100, activeColor: primaryGreen, inactiveColor: Colors.black12,
+                    onChanged: (val) => setState(() => _redLineTarget = val),
+                  ),
+                ]),
+
+                // --- WATER & VISION SETTINGS SECTION ---
+                _buildSectionTitle('WATER & VISION SETTINGS'),
+                _buildGroupPanel([
+                  Row(
+                    children: const [
+                      Icon(Icons.opacity, size: 16, color: Colors.blue),
+                      SizedBox(width: 6),
+                      Text('Irrigation & Camera Customization', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  _buildDropdownRow('Max Watering Duration', _selectedDuration, ['10 sec', '20 sec', '30 sec'], (v) => setState(() => _selectedDuration = v!)),
+                  const SizedBox(height: 8),
+                  _buildDropdownRow('Watering Interval', _selectedInterval, ['10 min', '30 min', '60 min'], (v) => setState(() => _selectedInterval = v!)),
+                  const SizedBox(height: 8),
+                  _buildDropdownRow('Capture Frequency', _selectedFrequency, ['1 Hours', '2 Hours', '4 Hours'], (v) => setState(() => _selectedFrequency = v!)),
+                  const SizedBox(height: 8),
+                  _buildDropdownRow('Image Quality', _selectedQuality, ['Low', 'Medium', 'High'], (v) => setState(() => _selectedQuality = v!)),
+                ]),
+
+                // --- MANUAL OVERRIDE SECTION ---
+                _buildSectionTitle('MANUAL OVERRIDE'),
+                _buildGroupPanel([
+                  Row(
+                    children: const [
+                      Icon(Icons.warning_amber_rounded, size: 16, color: Colors.redAccent),
+                      SizedBox(width: 6),
+                      Text('Hardware Direct Hardware Control', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Enable Manual Mode', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
+                      Switch(
+                        value: _isManualMode, 
+                        activeColor: primaryGreen, 
+                        onChanged: (v) => setState(() => _isManualMode = v),
                       ),
                     ],
                   ),
-                ),
-                _buildFigmaPanel(
-                  panelColor,
-                  Column(
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: const [
-                          Icon(Icons.opacity, size: 16, color: Colors.blue),
-                          SizedBox(width: 6),
-                          Text('Water Controls', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      _buildDropdownRow('Max Watering Duration', _selectedDuration, ['10 sec', '20 sec', '30 sec'], (v) => setState(() => _selectedDuration = v!)),
-                      const SizedBox(height: 8),
-                      _buildDropdownRow('Watering Interval', _selectedInterval, ['10 min', '30 min', '60 min'], (v) => setState(() => _selectedInterval = v!)),
-                    ],
-                  ),
-                ),
-                _buildFigmaPanel(
-                  panelColor,
-                  Column(
-                    children: [
-                      Row(
-                        children: const [
-                          Icon(Icons.camera_alt_outlined, size: 16, color: Colors.black87),
-                          SizedBox(width: 6),
-                          Text('Live Vision Setting (Storage Save)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      _buildDropdownRow('Capture Frequency', _selectedFrequency, ['1 Hours', '2 Hours', '4 Hours'], (v) => setState(() => _selectedFrequency = v!)),
-                      const SizedBox(height: 8),
-                      _buildDropdownRow('Image Quality', _selectedQuality, ['Low', 'Medium', 'High'], (v) => setState(() => _selectedQuality = v!)),
-                    ],
-                  ),
-                ),
-                _buildFigmaPanel(
-                  panelColor,
-                  Column(
-                    children: [
-                      Row(
-                        children: const [
-                          Icon(Icons.warning_amber_rounded, size: 16, color: Colors.redAccent),
-                          SizedBox(width: 6),
-                          Text('Manual Override Controls', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Enable Manual Mode', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                          Switch(value: _isManualMode, activeColor: primaryGreen, onChanged: (v) => setState(() => _isManualMode = v)),
-                        ],
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Water Pump Control', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC3BADB), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.black38, width: 0.8))),
-                            onPressed: _isManualMode ? () {} : null,
-                            child: const Text('Activate Pump', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 12)),
-                          )
-                        ],
+                      const Text('Water Pump Control', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC3BADB), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.black38, width: 0.8))),
+                        onPressed: _isManualMode ? () {} : null,
+                        child: const Text('Activate Pump', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 12)),
                       )
                     ],
-                  ),
-                ),
-                const SizedBox(height: 10),
+                  )
+                ]),
+                const SizedBox(height: 14),
+
+                // Log Out Button
                 InkWell(
                   onTap: () async {
                     await Supabase.instance.client.auth.signOut();
@@ -288,7 +281,7 @@ class _SettingScreenState extends State<SettingScreen> {
                   },
                   child: Container(
                     width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(color: const Color(0xFFBAC596), borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 2))]),
+                    decoration: BoxDecoration(color: const Color(0xFFBAC596), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.black12)),
                     child: const Text('LOG OUT', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
                   ),
                 )
@@ -300,11 +293,37 @@ class _SettingScreenState extends State<SettingScreen> {
     );
   }
 
-  Widget _buildFigmaPanel(Color bg, Widget child) {
+  // 构建类似参考图中的灰色小标题
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4.0, bottom: 8.0, top: 10.0),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: Colors.black54,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+
+  // 统一的高颜值带轻微黑边框的卡片底座
+  Widget _buildGroupPanel(List<Widget> children) {
     return Container(
-      width: double.infinity, margin: const EdgeInsets.only(bottom: 14), padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 3))]),
-      child: child,
+      width: double.infinity, 
+      margin: const EdgeInsets.only(bottom: 20), 
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FBFA), 
+        borderRadius: BorderRadius.circular(16), 
+        border: Border.all(color: Colors.black12), 
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
     );
   }
 
@@ -325,7 +344,7 @@ class _SettingScreenState extends State<SettingScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
           DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: value,
