@@ -24,7 +24,6 @@ class _MainHolderState extends State<MainHolder> {
 
   @override
   Widget build(BuildContext context) {
-    // 👑 命令 1：在外层套一个全物理视窗固定的 Container 墙纸，让全部 Page 的背景与 login/register 100% 联动一体！
     return Container(
       width: double.infinity,
       height: double.infinity,
@@ -34,45 +33,54 @@ class _MainHolderState extends State<MainHolder> {
           fit: BoxFit.cover,
         ),
       ),
-      child: Scaffold(
-        backgroundColor: Colors.transparent, // 👑 保持透明，确保每个子页面的精美底层壁纸完美穿透显示
-        body: _pages[_currentIndex],
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: const Color(0xFF497E66),
-          unselectedItemColor: Colors.grey,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-          items: [
-            BottomNavigationBarItem(
-                icon: Image.asset('assets/my_ic_home.png', width: 24, height: 24, color: Colors.grey),
-                activeIcon: Image.asset('assets/my_ic_home.png', width: 24, height: 24, color: const Color(0xFF497E66)),
-                label: 'Home'
+      child: Stack(
+        children: [
+          Container(
+            color: Colors.white.withOpacity(0.78),
+          ),
+          Scaffold(
+            backgroundColor: Colors.transparent, 
+            body: _pages[_currentIndex],
+            bottomNavigationBar: BottomNavigationBar(
+              currentIndex: _currentIndex,
+              onTap: (index) => setState(() => _currentIndex = index),
+              type: BottomNavigationBarType.fixed,
+              selectedItemColor: const Color(0xFF497E66),
+              unselectedItemColor: Colors.grey,
+              // 👑 关键：优化字体与图标间距，确保 5 个选项等分对齐，绝不拥挤
+              showUnselectedLabels: true,
+              selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 10),
+              items: [
+                BottomNavigationBarItem(
+                    icon: Image.asset('assets/my_ic_home.png', width: 22, height: 22, color: Colors.grey),
+                    activeIcon: Image.asset('assets/my_ic_home.png', width: 22, height: 22, color: const Color(0xFF497E66)),
+                    label: 'Home'
+                ),
+                BottomNavigationBarItem(
+                    icon: Image.asset('assets/my_ic_profile.png', width: 22, height: 22, color: Colors.grey),
+                    activeIcon: Image.asset('assets/my_ic_profile.png', width: 22, height: 22, color: const Color(0xFF497E66)),
+                    label: 'Plant'
+                ),
+                BottomNavigationBarItem(
+                    icon: Image.asset('assets/my_ic_analytic.png', width: 22, height: 22, color: Colors.grey),
+                    activeIcon: Image.asset('assets/my_ic_analytic.png', width: 22, height: 22, color: const Color(0xFF497E66)),
+                    label: 'Analytic'
+                ),
+                BottomNavigationBarItem(
+                    icon: Image.asset('assets/my_ic_eco.png', width: 22, height: 22, color: Colors.grey),
+                    activeIcon: Image.asset('assets/my_ic_eco.png', width: 22, height: 22, color: const Color(0xFF497E66)),
+                    label: 'Eco Impact'
+                ),
+                BottomNavigationBarItem(
+                    icon: Image.asset('assets/my_ic_settings.png', width: 22, height: 22, color: Colors.grey),
+                    activeIcon: Image.asset('assets/my_ic_settings.png', width: 22, height: 22, color: const Color(0xFF497E66)),
+                    label: 'Setting'
+                ),
+              ],
             ),
-            // 👑 命令 2：将原本的 'Profile' 标签正式换成要求的 'Plant' 标签，其余自制资产图标配置完美不动
-            BottomNavigationBarItem(
-                icon: Image.asset('assets/my_ic_profile.png', width: 24, height: 24, color: Colors.grey),
-                activeIcon: Image.asset('assets/my_ic_profile.png', width: 24, height: 24, color: const Color(0xFF497E66)),
-                label: 'Plant'
-            ),
-            BottomNavigationBarItem(
-                icon: Image.asset('assets/my_ic_analytic.png', width: 24, height: 24, color: Colors.grey),
-                activeIcon: Image.asset('assets/my_ic_analytic.png', width: 24, height: 24, color: const Color(0xFF497E66)),
-                label: 'Analytic'
-            ),
-            BottomNavigationBarItem(
-                icon: Image.asset('assets/my_ic_eco.png', width: 24, height: 24, color: Colors.grey),
-                activeIcon: Image.asset('assets/my_ic_eco.png', width: 24, height: 24, color: const Color(0xFF497E66)),
-                label: 'Eco Impact'
-            ),
-            BottomNavigationBarItem(
-                icon: Image.asset('assets/my_ic_settings.png', width: 24, height: 24, color: Colors.grey),
-                activeIcon: Image.asset('assets/my_ic_settings.png', width: 24, height: 24, color: const Color(0xFF497E66)),
-                label: 'Setting'
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

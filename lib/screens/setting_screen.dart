@@ -20,12 +20,30 @@ class _SettingScreenState extends State<SettingScreen> {
   String _profileId = 'FARM0027';
   bool _isIdLockedOnce = false; 
 
+  // 👑 修复 5：加入点击联动状态变量
+  String _selectedAutoMode = 'Full Auto';
+
   final Map<String, bool> _hardwareStatus = {
     'Raspberry Pi 4B Host': true,
     'DHT11 Temp & Humidity Sensor': true,
     'ADS1115 (Soil Moisture Sensors Hub)': true,
     '5V Relay & Water Pump Group': true,
   };
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserInfo();
+  }
+
+  void _fetchUserInfo() {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      setState(() {
+        _profileName = user.userMetadata?['name'] ?? user.email?.split('@').first ?? 'Lee Xin Yi';
+      });
+    }
+  }
 
   void _openProfileEditSheet() {
     final nameCtrl = TextEditingController(text: _profileName);
@@ -88,7 +106,6 @@ class _SettingScreenState extends State<SettingScreen> {
       backgroundColor: Colors.transparent,
       body: Column(
         children: [
-          // Top Header
           Container(
             width: double.infinity,
             decoration: const BoxDecoration(
@@ -112,13 +129,10 @@ class _SettingScreenState extends State<SettingScreen> {
             ),
           ),
           
-          // Scrollable Settings List
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 14.0), 
               children: [
-                
-                // --- USER ACCOUNT SECTION ---
                 _buildSectionTitle('USER ACCOUNT'),
                 Container(
                   width: double.infinity, 
@@ -154,7 +168,6 @@ class _SettingScreenState extends State<SettingScreen> {
                   ),
                 ),
 
-                // --- HARDWARE & SENSORS SECTION ---
                 _buildSectionTitle('HARDWARE & SENSORS'),
                 _buildGroupPanel([
                   Row(
@@ -183,7 +196,6 @@ class _SettingScreenState extends State<SettingScreen> {
                   )).toList(),
                 ]),
 
-                // --- OPERATION & CONTROL SECTION ---
                 _buildSectionTitle('OPERATION & CONTROL'),
                 _buildGroupPanel([
                   Row(
@@ -194,11 +206,12 @@ class _SettingScreenState extends State<SettingScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
+                  // 👑 修复 5：赋予 Full Auto / Semi Auto / Power Save 点击即变色高亮的动态交互
                   Row(
                     children: [
-                      _buildModeBtn('Full Auto', true),
-                      _buildModeBtn('Semi Auto', false),
-                      _buildModeBtn('Power Save', false),
+                      _buildModeBtn('Full Auto', _selectedAutoMode == 'Full Auto', () => setState(() => _selectedAutoMode = 'Full Auto')),
+                      _buildModeBtn('Semi Auto', _selectedAutoMode == 'Semi Auto', () => setState(() => _selectedAutoMode = 'Semi Auto')),
+                      _buildModeBtn('Power Save', _selectedAutoMode == 'Power Save', () => setState(() => _selectedAutoMode = 'Power Save')),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -215,7 +228,6 @@ class _SettingScreenState extends State<SettingScreen> {
                   ),
                 ]),
 
-                // --- WATER & VISION SETTINGS SECTION ---
                 _buildSectionTitle('WATER & VISION SETTINGS'),
                 _buildGroupPanel([
                   Row(
@@ -235,14 +247,13 @@ class _SettingScreenState extends State<SettingScreen> {
                   _buildDropdownRow('Image Quality', _selectedQuality, ['Low', 'Medium', 'High'], (v) => setState(() => _selectedQuality = v!)),
                 ]),
 
-                // --- MANUAL OVERRIDE SECTION ---
                 _buildSectionTitle('MANUAL OVERRIDE'),
                 _buildGroupPanel([
                   Row(
                     children: const [
                       Icon(Icons.warning_amber_rounded, size: 16, color: Colors.redAccent),
                       SizedBox(width: 6),
-                      Text('Hardware Direct Hardware Control', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
+                      Text('Hardware Direct Control', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -271,7 +282,6 @@ class _SettingScreenState extends State<SettingScreen> {
                 ]),
                 const SizedBox(height: 14),
 
-                // Log Out Button
                 InkWell(
                   onTap: () async {
                     await Supabase.instance.client.auth.signOut();
@@ -293,7 +303,6 @@ class _SettingScreenState extends State<SettingScreen> {
     );
   }
 
-  // 构建类似参考图中的灰色小标题
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 4.0, bottom: 8.0, top: 10.0),
@@ -309,7 +318,6 @@ class _SettingScreenState extends State<SettingScreen> {
     );
   }
 
-  // 统一的高颜值带轻微黑边框的卡片底座
   Widget _buildGroupPanel(List<Widget> children) {
     return Container(
       width: double.infinity, 
@@ -327,12 +335,19 @@ class _SettingScreenState extends State<SettingScreen> {
     );
   }
 
-  Widget _buildModeBtn(String label, bool isActive) {
+  Widget _buildModeBtn(String label, bool isActive, VoidCallback onTap) {
     return Expanded(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 2), padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(color: isActive ? const Color(0xFFBAC596) : Colors.transparent, border: Border.all(color: Colors.black38, width: 0.8), borderRadius: BorderRadius.circular(8)),
-        child: Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 2), padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isActive ? const Color(0xFFBAC596) : Colors.white, 
+            border: Border.all(color: Colors.black38, width: 0.8), 
+            borderRadius: BorderRadius.circular(8)
+          ),
+          child: Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isActive ? Colors.black : Colors.black87)),
+        ),
       ),
     );
   }

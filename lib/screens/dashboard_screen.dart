@@ -30,7 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
       setState(() {
-        _userFullName = user.userMetadata?['name'] ?? user.email?.split('@').first ?? 'LEE XIN YI';
+        _userFullName = user.userMetadata?['name'] ?? user.email?.split('@').first ?? 'Lee Xin Yi';
       });
     }
   }
@@ -100,14 +100,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         child: const Icon(Icons.person, color: Colors.white, size: 22),
                       ),
                       const SizedBox(width: 14),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('Hi, $_userFullName!', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3)),
-                          const SizedBox(height: 1),
-                          Text('Welcome back to monitoring.', style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.7))),
-                        ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('Hi, $_userFullName!', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3), overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 1),
+                            Text('Welcome back to monitoring.', style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.7))),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -128,10 +130,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 14),
                   
-                  // Total Carbon Footprint Saved Card
+                  // Total Carbon Footprint Saved Card (👑 已替换为专属本地图标)
                   _buildCard(softIvoryWhite, Row(
                     children: [
-                      const Icon(Icons.eco_outlined, size: 36, color: primaryDarkGreen),
+                      Image.asset('assets/my_ic_carbonfootprint.png', width: 36, height: 36, color: primaryDarkGreen),
                       const SizedBox(width: 14),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -178,7 +180,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   )),
                   
-                  // Water Tank Storage (Float Sensor) Card
+                  // Water Tank Storage Card
                   _buildCard(
                     _isWaterLevelNormal ? softIvoryWhite : const Color(0xFFFCE8E6),
                     Column(
@@ -235,7 +237,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFFF9FBFA), 
         borderRadius: BorderRadius.circular(16), 
-        border: Border.all(color: Colors.black12), // 添加统一边框
+        border: Border.all(color: Colors.black12),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6, offset: const Offset(0, 3))],
       ),
       child: Row(
@@ -263,7 +265,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       decoration: BoxDecoration(
         color: color, 
         borderRadius: BorderRadius.circular(16), 
-        border: Border.all(color: Colors.black12), // 为主卡片添加高颜值全英文浅色统一边框
+        border: Border.all(color: Colors.black12),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6, offset: const Offset(0, 3))],
       ),
       child: child,

@@ -64,7 +64,6 @@ flutter:
     # 🌿 注意：横杠 - 前面必须是【4个空格】，大小写一定要和你的文件名一模一样！
     - assets/app_background.png
     - assets/app_logo.png
-    - assets/my_ic_activepolicy.png
     - assets/my_ic_analytic.png
     - assets/my_ic_carbonfootprint.png
     - assets/my_ic_eco.png

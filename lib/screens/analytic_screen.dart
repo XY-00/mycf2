@@ -21,7 +21,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Top Header Panel
             Container(
               width: double.infinity,
               decoration: const BoxDecoration(
@@ -46,7 +45,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
             ),
             const SizedBox(height: 14),
             
-            // Tab Buttons
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
               child: Row(
@@ -60,7 +58,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
             ),
             const SizedBox(height: 10),
             
-            // Live Camera Container
             Container(
               width: double.infinity, padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.symmetric(horizontal: 20.0), 
@@ -88,7 +85,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
                               top: 12, left: 12, 
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), 
-                                // 这里改为红色，同时保持标签内部文字样式
                                 decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)), 
                                 child: Row(
                                   children: const [
@@ -122,7 +118,7 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
             ),
             const SizedBox(height: 16),
             
-            // Visual Health Validation Panel (缩小高度，回归黄金比例)
+            // 👑 修复 7：Visual Health Validation 采用纯 Row / Column 弹性替代 GridView，彻底解决 Device 和 Chrome 的像素差空位
             Container(
               width: double.infinity, 
               padding: const EdgeInsets.all(14),
@@ -142,28 +138,27 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
                       Text('Visual Health Validation', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  // 🌟 重新精确修正：调整比例为 1.85，让它变回扁平精致的长方形，不再霸占整半个屏幕！
-                  GridView.count(
-                    shrinkWrap: true, 
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2, 
-                    childAspectRatio: 1.85, // 刚刚好的高度比例，绝不臃肿
-                    mainAxisSpacing: 10,  
-                    crossAxisSpacing: 10, 
+                  const SizedBox(height: 10),
+                  Row(
                     children: [
-                      _buildGridItem('Leaf Color Analysis', _selectedPlantTab == 0 ? 'All channels normal' : 'Plant $_selectedPlantTab: Lush Green', Icons.spa_outlined),
-                      _buildGridItem('Growth Rate', _selectedPlantTab == 0 ? 'Avg: +2.1 cm / wk' : 'Plant $_selectedPlantTab: +2.3 cm', Icons.stacked_line_chart),
-                      _buildGridItem('Moisture Status', _selectedPlantTab == 0 ? 'All sensors online' : 'Plant $_selectedPlantTab: Stable (65%)', Icons.opacity_outlined),
-                      _buildGridItem('System Performance', _selectedPlantTab == 0 ? 'Relays triggered: 3' : 'Pump $_selectedPlantTab active', Icons.notifications_active_outlined),
+                      Expanded(child: _buildGridItem('Leaf Color Analysis', _selectedPlantTab == 0 ? 'All channels normal' : 'Plant $_selectedPlantTab: Lush Green', Icons.spa_outlined)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _buildGridItem('Growth Rate', _selectedPlantTab == 0 ? 'Avg: +2.1 cm / wk' : 'Plant $_selectedPlantTab: +2.3 cm', Icons.stacked_line_chart)),
                     ],
-                  )
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(child: _buildGridItem('Moisture Status', _selectedPlantTab == 0 ? 'All sensors online' : 'Plant $_selectedPlantTab: Stable (65%)', Icons.opacity_outlined)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _buildGridItem('System Performance', _selectedPlantTab == 0 ? 'Relays triggered: 3' : 'Pump $_selectedPlantTab active', Icons.notifications_active_outlined)),
+                    ],
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
             
-            // Moisture Trend Panel
             Container(
               width: double.infinity, padding: const EdgeInsets.all(14),
               margin: const EdgeInsets.symmetric(horizontal: 20.0), 
@@ -186,7 +181,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
             ),
             const SizedBox(height: 16),
             
-            // Carbon Protection Panel
             Container(
               width: double.infinity, padding: const EdgeInsets.all(14),
               margin: const EdgeInsets.symmetric(horizontal: 20.0), 
@@ -277,10 +271,10 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
     );
   }
 
-  // 🌟 紧凑优雅布局：不强制上下死死拉开，让内部空间更舒服自然
   Widget _buildGridItem(String title, String desc, IconData icon) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      height: 52,
       decoration: BoxDecoration(
         color: Colors.white, 
         borderRadius: BorderRadius.circular(12),
@@ -288,7 +282,7 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start, 
-        mainAxisAlignment: MainAxisAlignment.center, // 居中紧凑排列，避免空洞和过度撑开
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.center, 
@@ -298,14 +292,14 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
               Expanded(
                 child: Text(
                   title, 
-                  maxLines: 1, // 精准控制：1行标题配上1.85的比例在绝大多数手机上已经完美塞下且不换行
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF497E66)), 
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             desc, 
             style: const TextStyle(fontSize: 10, color: Colors.black54, height: 1.1), 

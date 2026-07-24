@@ -1,7 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class EcoImpactScreen extends StatelessWidget {
+class EcoImpactScreen extends StatefulWidget {
   const EcoImpactScreen({Key? key}) : super(key: key);
+
+  @override
+  State<EcoImpactScreen> createState() => _EcoImpactScreenState();
+}
+
+class _EcoImpactScreenState extends State<EcoImpactScreen> {
+  String _profileName = 'Lee Xin Yi';
+  String _profileId = 'FARM0027';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserInfo();
+  }
+
+  void _fetchUserInfo() {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      setState(() {
+        _profileName = user.userMetadata?['name'] ?? user.email?.split('@').first ?? 'Lee Xin Yi';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,14 +65,13 @@ class EcoImpactScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  // Farmer Profile Card
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: containerBg, 
                       borderRadius: BorderRadius.circular(14), 
-                      border: Border.all(color: Colors.black12), // 改为更细腻的浅色统一边框
+                      border: Border.all(color: Colors.black12), 
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start, 
@@ -61,13 +84,15 @@ class EcoImpactScreen extends StatelessWidget {
                               child: Icon(Icons.face_retouching_natural, color: Colors.white, size: 28),
                             ),
                             const SizedBox(width: 14),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
-                                Text('Farmer: Lee Xin Yi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black)),
-                                  SizedBox(height: 2),
-                                Text('UserID: FARM0027', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
-                              ],
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Farmer: $_profileName', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black), overflow: TextOverflow.ellipsis),
+                                  const SizedBox(height: 2),
+                                  Text('UserID: $_profileId', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
+                                ],
+                              ),
                             )
                           ],
                         ),
@@ -126,17 +151,16 @@ class EcoImpactScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20.0), 
               child: Row(
                 children: [
-                  _buildMetricBox('Total Carbon Footprint\nsaved (mg CO2e)', '146.0', Icons.eco_outlined),
+                  _buildMetricBox('Total Carbon\nFootprint saved', '146.0', isImageIcon: true),
                   const SizedBox(width: 8),
-                  _buildMetricBox('Red-line success', '3 of 3\nIntervention', Icons.gps_fixed),
+                  _buildMetricBox('Red-line\nsuccess', '3 of 3', icon: Icons.gps_fixed),
                   const SizedBox(width: 8),
-                  _buildMetricBox('Total Water Saved\n(Liter)', '10.0', Icons.opacity),
+                  _buildMetricBox('Total Water\nSaved (Liter)', '10.0', icon: Icons.opacity),
                 ],
               ),
             ),
             const SizedBox(height: 14),
             
-            // History Record Main Base
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
@@ -144,7 +168,7 @@ class EcoImpactScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: containerBg, 
                 borderRadius: BorderRadius.circular(16), 
-                border: Border.all(color: Colors.black12), // 更改为细腻一致浅边框
+                border: Border.all(color: Colors.black12), 
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -189,26 +213,28 @@ class EcoImpactScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMetricBox(String label, String value, IconData icon) {
+  Widget _buildMetricBox(String label, String value, {IconData? icon, bool isImageIcon = false}) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
         height: 110,
         decoration: BoxDecoration(
           color: const Color(0xFFF7F5EA), 
           borderRadius: BorderRadius.circular(12), 
-          border: Border.all(color: Colors.black12), // 统一卡片边框
+          border: Border.all(color: Colors.black12), 
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black87, height: 1.1)),
+            Text(label, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Colors.black87, height: 1.1)),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 20, color: const Color(0xFF2C4A3E)),
+                isImageIcon 
+                    ? Image.asset('assets/my_ic_carbonfootprint.png', width: 18, height: 18, color: const Color(0xFF2C4A3E))
+                    : Icon(icon, size: 18, color: const Color(0xFF2C4A3E)),
                 const SizedBox(width: 4),
-                Text(value, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black)),
+                Text(value, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black)),
               ],
             )
           ],
@@ -224,7 +250,7 @@ class EcoImpactScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFD6E4DA), 
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.black12), // 新增边框以确保整体格调
+        border: Border.all(color: Colors.black12), 
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -244,7 +270,7 @@ class EcoImpactScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.transparent, 
         borderRadius: BorderRadius.circular(8), 
-        border: Border.all(color: Colors.black12), // 改为 Colors.black12 精细浅色边框
+        border: Border.all(color: Colors.black12), 
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -263,7 +289,7 @@ class EcoImpactScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFA2B5A9), 
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.black12), // 按钮也增加呼应的外边框
+        border: Border.all(color: Colors.black12), 
       ),
       child: Text(text, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87)),
     );

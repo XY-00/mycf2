@@ -10,8 +10,11 @@ class PlantProfileScreen extends StatefulWidget {
 }
 
 class _PlantProfileScreenState extends State<PlantProfileScreen> {
-  // 动态增长的数组，用于存储已添加的活体植物，最大上限3个
+  // 0 代表 Active Plants，1 代表 History
+  int _selectedSegment = 0; 
+
   final List<Map<String, dynamic>> _activePlants = [];
+  final List<Map<String, dynamic>> _historyPlants = [];
 
   final Map<String, IconData> _avatarMap = {
     'Sunflower 🌻': Icons.wb_sunny_outlined,
@@ -21,10 +24,7 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> {
   };
 
   void _showAddPlantDialog() {
-    // 达到3个植物时，拦截操作不弹出对话框
     if (_activePlants.length >= 3) return;
-
-    // 动态计算下一个植物的编号
     int nextPlantNumber = _activePlants.length + 1;
 
     showDialog(
@@ -51,16 +51,14 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      
-      // 当活体植物达到3个的上限时，右下角的 FloatingActionButton 会自动隐藏
-      floatingActionButton: _activePlants.length < 3
+      floatingActionButton: (_selectedSegment == 0 && _activePlants.length < 3)
           ? FloatingActionButton(
               backgroundColor: primaryDarkGreen,
+              shape: const CircleBorder(),
               onPressed: _showAddPlantDialog,
               child: const Icon(Icons.add, color: Colors.white, size: 28),
             )
           : null,
-
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -87,19 +85,81 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> {
               ),
             ),
           ),
-          
-          // Content Base
+          const SizedBox(height: 14),
+
+          // 胶囊切换卡片（Active vs History）
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: Container(
+              height: 48,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.black12),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedSegment = 0),
+                      child: Container(
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: _selectedSegment == 0 ? const Color(0xFF497E66) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          'Active Plants',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: _selectedSegment == 0 ? Colors.white : Colors.black54,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedSegment = 1),
+                      child: Container(
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: _selectedSegment == 1 ? const Color(0xFF497E66) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          'History',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: _selectedSegment == 1 ? Colors.white : Colors.black54,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // 动态展示对应内容
           Expanded(
-            child: _activePlants.isEmpty
-                ? _buildEmptyPlaceholder() // 如果没有添加植物，渲染卡片包裹的空状态
-                : _buildDynamicPlantList(softIvoryWhite, primaryDarkGreen), // 有植物时动态显示列表
+            child: _selectedSegment == 0
+                ? (_activePlants.isEmpty ? _buildEmptyPlaceholder() : _buildPlantList(_activePlants, softIvoryWhite, primaryDarkGreen, false))
+                : (_historyPlants.isEmpty ? _buildEmptyHistoryPlaceholder() : _buildPlantList(_historyPlants, softIvoryWhite, primaryDarkGreen, true)),
           ),
         ],
       ),
     );
   }
 
-  // 修正后的空状态组件：将 Maximum 提示完美融入到白色卡片内部
   Widget _buildEmptyPlaceholder() {
     return Center(
       child: Padding(
@@ -109,49 +169,27 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> {
           padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(24), // 精致大圆角
-            border: Border.all(color: Colors.black12), // 统一的黑12全App细边框
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              )
-            ],
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.black12),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // 第一行：引导添加文本与图标并排居中
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: const [
-                  Text(
-                    'Tap the ',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2C3E35)),
-                  ),
-                  Icon(
-                    Icons.add_circle, // 实心圆形加号图标
-                    color: Color(0xFF2C4A3E),
-                    size: 26,
-                  ),
-                  Text(
-                    ' to add a plant',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2C3E35)),
-                  ),
+                  Text('Tap the ', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2C3E35))),
+                  Icon(Icons.add_circle, color: Color(0xFF2C4A3E), size: 26),
+                  Text(' to add a plant', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2C3E35))),
                 ],
               ),
               const SizedBox(height: 8),
-              // 第二行：直接内嵌在卡片底部的最大数量温馨提示
               const Text(
-                '(Maximum 3 plants can be added)',
-                style: TextStyle(
-                  fontSize: 12, 
-                  color: Colors.grey, 
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.2,
-                ),
+                '(Maximum 3 active plants can be added)',
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 10.5, color: Colors.grey, fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -160,29 +198,61 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> {
     );
   }
 
-  // 动态植物列表页面渲染
-  Widget _buildDynamicPlantList(Color softIvoryWhite, Color primaryDarkGreen) {
+  Widget _buildEmptyHistoryPlaceholder() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.black12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Text(
+                'No plant history yet',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF2C3E35)),
+              ),
+              SizedBox(height: 6),
+              Text(
+                '(Completed or deleted plants will appear here)',
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 10.5, color: Colors.grey, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlantList(List<Map<String, dynamic>> list, Color softIvoryWhite, Color primaryDarkGreen, bool isHistory) {
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0), 
-      itemCount: _activePlants.length,
+      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0), 
+      itemCount: list.length,
       itemBuilder: (context, index) {
-        final plant = _activePlants[index];
+        final plant = list[index];
         final int daysOld = DateTime.now().difference(plant['date']).inDays;
-        
-        // 自动转换成符合 Analytic 页面格式的 "Plant 1: 名字" 格式
-        String formattedTitle = 'Plant ${index + 1}: ${plant['name']}';
+        String formattedTitle = 'Plant: ${plant['name']}';
 
         return Container(
           margin: const EdgeInsets.only(bottom: 14),
           decoration: BoxDecoration(
             color: softIvoryWhite, 
             borderRadius: BorderRadius.circular(16), 
-            border: Border.all(color: Colors.black12), // 保持全App统一的黑12浅色细腻边框
+            border: Border.all(color: Colors.black12),
             boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6)],
           ),
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
-            onTap: () async {
+            onTap: isHistory ? null : () async {
               final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -197,10 +267,12 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> {
               
               if (result != null) {
                 setState(() {
+                  // 不管是 harvest 还是 delete，都统一安全存入历史列表中
                   if (result['action'] == 'delete' || result['action'] == 'harvest') {
-                    _activePlants.removeAt(index);
+                    final item = list.removeAt(index);
+                    _historyPlants.add(item);
                   } else if (result['action'] == 'update') {
-                    _activePlants[index] = {
+                    list[index] = {
                       'name': result['name'],
                       'date': result['date'],
                       'avatar': result['avatar'],
@@ -216,11 +288,11 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEAF2E8), 
+                      color: isHistory ? Colors.grey.withOpacity(0.15) : const Color(0xFFEAF2E8), 
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.black12),
                     ),
-                    child: Icon(_avatarMap[plant['avatar']] ?? Icons.eco, size: 32, color: primaryDarkGreen),
+                    child: Icon(_avatarMap[plant['avatar']] ?? Icons.eco, size: 32, color: isHistory ? Colors.black54 : primaryDarkGreen),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -229,11 +301,21 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> {
                       children: [
                         Text(formattedTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2C3E35))),
                         const SizedBox(height: 4),
-                        Text('$daysOld Days Old', style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
+                        Text(isHistory ? 'Archived / History' : '$daysOld Days Old', style: TextStyle(fontSize: 12, color: isHistory ? Colors.black54 : Colors.grey, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
-                  const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
+                  if (isHistory)
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                      onPressed: () {
+                        setState(() {
+                          _historyPlants.removeAt(index);
+                        });
+                      },
+                    )
+                  else
+                    const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
                 ],
               ),
             ),
