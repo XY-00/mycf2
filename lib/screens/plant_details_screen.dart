@@ -266,7 +266,16 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // 1. 基础信息卡片
+                        // 1. Plant Details 区域标题
+                        const Padding(
+                          padding: EdgeInsets.only(left: 4.0, bottom: 8.0),
+                          child: Text(
+                            'Plant Details', 
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryDarkGreen)
+                          ),
+                        ),
+
+                        // 2. 基础信息卡片（已移除 Plant Name 前面的图标）
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
@@ -277,24 +286,39 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                             boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6)],
                           ),
                           child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: Colors.black12),
-                                ),
-                                child: Icon(_avatarMap[_currentAvatar] ?? Icons.eco, size: 54, color: primaryDarkGreen),
+                              Column(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: Colors.black12),
+                                    ),
+                                    child: Icon(_avatarMap[_currentAvatar] ?? Icons.eco, size: 54, color: primaryDarkGreen),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  const Text(
+                                    'Moisture: 62%',
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
+                                  ),
+                                ],
                               ),
                               const SizedBox(width: 16),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text('Plant Name', style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.black54, fontWeight: FontWeight.bold)),
+                                    const Text('Plant Name', style: TextStyle(fontSize: 11, fontStyle: FontStyle.normal, color: Colors.black54, fontWeight: FontWeight.bold)),
                                     const SizedBox(height: 2),
-                                    Text(_currentName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87)),
+                                    Text(
+                                      _currentName, 
+                                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                     const SizedBox(height: 12),
                                     Row(
                                       children: [
@@ -312,31 +336,6 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                                   ],
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-
-                        // 2. Connected Hardware & Sensors
-                        const Padding(
-                          padding: EdgeInsets.only(left: 4.0, bottom: 6.0),
-                          child: Text('Connected Hardware & Sensors', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
-                        ),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: unifiedCardBg,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.black12),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6)],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('• Soil Moisture Sensor: Channel ${widget.slotIndex} (A${widget.slotIndex})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
-                              const SizedBox(height: 4),
-                              Text('• Water Relay Actuator: Pump ${widget.slotIndex + 1}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
                             ],
                           ),
                         ),
@@ -362,7 +361,6 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // 👑 严格对齐、数字上下带有完美呼吸空位
                               IntrinsicHeight(
                                 child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -524,7 +522,6 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
     );
   }
 
-  // 👑 在百分比数字上下加入精致的 Padding，形成完美的上下空位，同时保证完美对齐
   Widget _screenshotBox(String title, String percent, String desc, Color dotColor, Color boxBgColor, Color textColor) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
@@ -553,7 +550,6 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
               Container(width: 6, height: 6, decoration: BoxDecoration(shape: BoxShape.circle, color: dotColor)),
             ],
           ), 
-          // 👑 给予数字上下刚刚好的空位（Padding），并保证三个数字绝对在同一水平线
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 6.0),
             child: Center(

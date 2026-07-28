@@ -16,7 +16,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isObscure = true;
   bool _isLoading = false;
 
-  // 👑 彻底修复数据残留问题：改用最纯净的独立登录与提示策略
   void _login() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -31,7 +30,6 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1️⃣ 第一步：直接请求 Supabase 进行登录
       final response = await Supabase.instance.client.auth.signInWithPassword(
         email: email,
         password: password,
@@ -46,9 +44,6 @@ class _LoginScreenState extends State<LoginScreen> {
     } on AuthException catch (e) {
       if (mounted) {
         final errorMessage = e.message.toLowerCase();
-        
-        // 2️⃣ 第二步：分析 Supabase 返回的原生错误类型，不再执行后台 signUp 模拟测试！
-        // 这样可以彻底根治非注册用户在后台生成脏记录、产生 Invited 状态和横杠 `-` 的问题
         if (errorMessage.contains('invalid') || errorMessage.contains('credential') || errorMessage.contains('grant')) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Invalid email or password')),
@@ -98,19 +93,19 @@ class _LoginScreenState extends State<LoginScreen> {
           body: SafeArea(
             child: Column(
               children: [
-                const SizedBox(height: 130), 
+                const SizedBox(height: 120), 
+                // 👑 删除了白色卡片背景和白边，将 Logo 直接裁剪为纯圆形
                 Center(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.9),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 4),
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/app_logo.png', 
+                      width: 100, 
+                      height: 100,
+                      fit: BoxFit.cover,
                     ),
-                    padding: const EdgeInsets.all(8),
-                    child: Image.asset('assets/app_logo.png', width: 90, height: 90),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 25),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 10.0),

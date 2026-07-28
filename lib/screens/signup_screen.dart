@@ -16,8 +16,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _confirmController = TextEditingController();
   
   bool _isLoading = false;
-  
-  // 👑 彻底修复编译报错：完整定义密码显隐控制变量
   bool _isPasswordObscure = true;
   bool _isConfirmObscure = true;
 
@@ -90,7 +88,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 👑 真正的 Full Name 绑定：传入 data 参数，确保后台 Display Name 展现你的真名
       await Supabase.instance.client.auth.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
@@ -148,19 +145,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
           body: SafeArea(
             child: Column(
               children: [
-                const SizedBox(height: 130), 
+                const SizedBox(height: 120), 
+                // 👑 删除了白色卡片背景和白边，将 Logo 直接裁剪为纯圆形
                 Center(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.9),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 4),
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/app_logo.png', 
+                      width: 100, 
+                      height: 100,
+                      fit: BoxFit.cover,
                     ),
-                    padding: const EdgeInsets.all(8),
-                    child: Image.asset('assets/app_logo.png', width: 90, height: 90),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 25),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 10.0),
