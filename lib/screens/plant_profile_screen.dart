@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'add_plant_screen.dart'; 
 import 'plant_details_screen.dart'; 
+import 'plant_history_screen.dart';
 
 class PlantProfileScreen extends StatefulWidget {
   const PlantProfileScreen({Key? key}) : super(key: key);
@@ -9,12 +11,15 @@ class PlantProfileScreen extends StatefulWidget {
   State<PlantProfileScreen> createState() => _PlantProfileScreenState();
 }
 
-class _PlantProfileScreenState extends State<PlantProfileScreen> {
-  // 0 代表 Active Plants，1 代表 History
+class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticKeepAliveClientMixin {
   int _selectedSegment = 0; 
 
-  final List<Map<String, dynamic>> _activePlants = [];
-  final List<Map<String, dynamic>> _historyPlants = [];
+  List<Map<String, dynamic>> _activePlants = [];
+  List<Map<String, dynamic>> _historyPlants = [];
+  bool _isLoading = true;
+
+  @override
+  bool get wantKeepAlive => true;
 
   final Map<String, IconData> _avatarMap = {
     'Sunflower 🌻': Icons.wb_sunny_outlined,
@@ -23,29 +28,112 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> {
     'Fern 🌿': Icons.eco_outlined,
   };
 
-  void _showAddPlantDialog() {
-    if (_activePlants.length >= 3) return;
-    int nextPlantNumber = _activePlants.length + 1;
+  @override
+  void initState() {
+    super.initState();
+    _fetchPlantsFromSupabase();
+  }
 
-    showDialog(
-      context: context,
-      builder: (context) => AddPlantDialog(
-        slotNumber: nextPlantNumber, 
-        onAdd: (name, date, avatar) {
-          setState(() {
-            _activePlants.add({
-              'name': name,
-              'date': date,
-              'avatar': avatar,
-            });
-          });
-        },
+  Future<void> _fetchPlantsFromSupabase() async {
+    try {
+      final activeResponse = await Supabase.instance.client
+          .from('plants')
+          .select()
+          .eq('status', 'active')
+          .order('slot_number', ascending: true);
+
+      // 👑 关键修复1：在 Supabase 查询时直接按 archived_at 倒序拉取（最迟归档的在最前）
+      final historyResponse = await Supabase.instance.client
+          .from('plants')
+          .select()
+          .eq('status', 'history')
+          .order('archived_at', ascending: false);
+
+      final List<Map<String, dynamic>> active = [];
+      for (var item in activeResponse) {
+        active.add({
+          'id': item['id'],
+          'slot_number': item['slot_number'] ?? 1,
+          'name': item['name'],
+          'date': DateTime.parse(item['planted_date']),
+          'avatar': item['avatar'],
+        });
+      }
+
+      final List<Map<String, dynamic>> history = [];
+      for (var item in historyResponse) {
+        // 👑 关键修复2：使用 insert(0) 确保每次追加时，后删除的强行排在最前面
+        history.insert(0, {
+          'id': item['id'],
+          'slot_number': item['slot_number'] ?? 1,
+          'name': item['name'],
+          'date': DateTime.parse(item['planted_date']),
+          'avatar': item['avatar'],
+          'action_type': item['action_type'] ?? 'complete',
+          'archived_at': item['archived_at'] != null ? DateTime.parse(item['archived_at']) : DateTime.now(),
+        });
+      }
+
+      // 双重保险：在前端再次进行绝对降序排序
+      history.sort((a, b) {
+        DateTime timeA = a['archived_at'];
+        DateTime timeB = b['archived_at'];
+        return timeB.compareTo(timeA);
+      });
+
+      setState(() {
+        _activePlants = active;
+        _historyPlants = history;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      print('Error fetching plants: $e');
+    }
+  }
+
+  int _getNextAvailableSlot() {
+    List<int> occupiedSlots = _activePlants.map((p) => p['slot_number'] as int).toList();
+    for (int i = 1; i <= 3; i++) {
+      if (!occupiedSlots.contains(i)) {
+        return i; 
+      }
+    }
+    return 1;
+  }
+
+  void _navigateToAddPlant() {
+    if (_activePlants.length >= 3) return;
+    
+    int availableSlot = _getNextAvailableSlot();
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddPlantScreen(
+          slotNumber: availableSlot, 
+          onAdd: (name, date, avatar) async {
+            try {
+              await Supabase.instance.client.from('plants').insert({
+                'slot_number': availableSlot,
+                'name': name,
+                'planted_date': date.toIso8601String(),
+                'avatar': avatar,
+                'status': 'active',
+              });
+              _fetchPlantsFromSupabase();
+            } catch (e) {
+              print('Error adding plant: $e');
+            }
+          },
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     const Color primaryDarkGreen = Color(0xFF2C4A3E); 
     const Color softIvoryWhite = Color(0xFFF9FBFA); 
 
@@ -55,108 +143,108 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> {
           ? FloatingActionButton(
               backgroundColor: primaryDarkGreen,
               shape: const CircleBorder(),
-              onPressed: _showAddPlantDialog,
+              onPressed: _navigateToAddPlant,
               child: const Icon(Icons.add, color: Colors.white, size: 28),
             )
           : null,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Top Header Panel
-          Container(
-            width: double.infinity,
-            decoration: const BoxDecoration(
-              color: primaryDarkGreen, 
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(20),
-                bottomRight: Radius.circular(20),
-              ),
-            ),
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 20.0, right: 20.0, top: 14.0, bottom: 16.0), 
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center, 
-                  children: const [
-                    Text('Plant Profile', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3)),
-                  ],
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: primaryDarkGreen))
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    color: primaryDarkGreen, 
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 20.0, right: 20.0, top: 14.0, bottom: 16.0), 
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center, 
+                        children: const [
+                          Text('Plant Profile', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3)),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // 胶囊切换卡片（Active vs History）
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0),
-            child: Container(
-              height: 48,
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.black12),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))
-                ],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _selectedSegment = 0),
-                      child: Container(
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: _selectedSegment == 0 ? const Color(0xFF497E66) : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          'Active Plants',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                            color: _selectedSegment == 0 ? Colors.white : Colors.black54,
+                const SizedBox(height: 14),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Container(
+                    height: 48,
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: Colors.black12),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _selectedSegment = 0),
+                            child: Container(
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: _selectedSegment == 0 ? const Color(0xFF497E66) : Colors.transparent,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'Active Plants',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: _selectedSegment == 0 ? Colors.white : Colors.black54,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _selectedSegment = 1),
-                      child: Container(
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: _selectedSegment == 1 ? const Color(0xFF497E66) : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          'History',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                            color: _selectedSegment == 1 ? Colors.white : Colors.black54,
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _selectedSegment = 1),
+                            child: Container(
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: _selectedSegment == 1 ? const Color(0xFF497E66) : Colors.transparent,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'History',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: _selectedSegment == 1 ? Colors.white : Colors.black54,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: _selectedSegment == 0
+                      ? (_activePlants.isEmpty ? _buildEmptyPlaceholder() : _buildActivePlantList(softIvoryWhite, primaryDarkGreen))
+                      : PlantHistoryScreen(
+                          historyPlants: _historyPlants,
+                          onRefreshNeeded: _fetchPlantsFromSupabase,
+                        ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 10),
-
-          // 动态展示对应内容
-          Expanded(
-            child: _selectedSegment == 0
-                ? (_activePlants.isEmpty ? _buildEmptyPlaceholder() : _buildPlantList(_activePlants, softIvoryWhite, primaryDarkGreen, false))
-                : (_historyPlants.isEmpty ? _buildEmptyHistoryPlaceholder() : _buildPlantList(_historyPlants, softIvoryWhite, primaryDarkGreen, true)),
-          ),
-        ],
-      ),
     );
   }
 
@@ -198,49 +286,15 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> {
     );
   }
 
-  Widget _buildEmptyHistoryPlaceholder() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.black12),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              Text(
-                'No plant history yet',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF2C3E35)),
-              ),
-              SizedBox(height: 6),
-              Text(
-                '(Completed or deleted plants will appear here)',
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 10.5, color: Colors.grey, fontWeight: FontWeight.w600),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPlantList(List<Map<String, dynamic>> list, Color softIvoryWhite, Color primaryDarkGreen, bool isHistory) {
+  Widget _buildActivePlantList(Color softIvoryWhite, Color primaryDarkGreen) {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0), 
-      itemCount: list.length,
+      itemCount: _activePlants.length,
       itemBuilder: (context, index) {
-        final plant = list[index];
+        final plant = _activePlants[index];
         final int daysOld = DateTime.now().difference(plant['date']).inDays;
-        String formattedTitle = 'Plant: ${plant['name']}';
+        int slotNum = plant['slot_number'] ?? 1;
+        String formattedTitle = 'Plant $slotNum: ${plant['name']}';
 
         return Container(
           margin: const EdgeInsets.only(bottom: 14),
@@ -252,33 +306,47 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> {
           ),
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
-            onTap: isHistory ? null : () async {
+            onTap: () async {
               final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => PlantDetailsScreen(
-                    slotIndex: index,
+                    slotIndex: slotNum - 1, 
                     initialName: plant['name'],
                     initialDate: plant['date'],
                     initialAvatar: plant['avatar'],
+                    isHistoryView: false,
                   ),
                 ),
               );
               
               if (result != null) {
-                setState(() {
-                  // 不管是 harvest 还是 delete，都统一安全存入历史列表中
-                  if (result['action'] == 'delete' || result['action'] == 'harvest') {
-                    final item = list.removeAt(index);
-                    _historyPlants.add(item);
-                  } else if (result['action'] == 'update') {
-                    list[index] = {
-                      'name': result['name'],
-                      'date': result['date'],
-                      'avatar': result['avatar'],
-                    };
-                  }
-                });
+                String action = result['action'];
+                if (action == 'harvest') {
+                  action = 'complete';
+                }
+
+                if (action == 'delete' || action == 'complete') {
+                  await Supabase.instance.client
+                      .from('plants')
+                      .update({
+                        'status': 'history',
+                        'action_type': action, 
+                        'archived_at': DateTime.now().toIso8601String(),
+                      })
+                      .eq('id', plant['id']);
+                  _fetchPlantsFromSupabase();
+                } else if (action == 'update') {
+                  await Supabase.instance.client
+                      .from('plants')
+                      .update({
+                        'name': result['name'],
+                        'planted_date': result['date'].toIso8601String(),
+                        'avatar': result['avatar'],
+                      })
+                      .eq('id', plant['id']);
+                  _fetchPlantsFromSupabase();
+                }
               }
             },
             child: Padding(
@@ -288,11 +356,11 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: isHistory ? Colors.grey.withOpacity(0.15) : const Color(0xFFEAF2E8), 
+                      color: const Color(0xFFEAF2E8), 
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.black12),
                     ),
-                    child: Icon(_avatarMap[plant['avatar']] ?? Icons.eco, size: 32, color: isHistory ? Colors.black54 : primaryDarkGreen),
+                    child: Icon(_avatarMap[plant['avatar']] ?? Icons.eco, size: 32, color: primaryDarkGreen),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -301,21 +369,11 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> {
                       children: [
                         Text(formattedTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2C3E35))),
                         const SizedBox(height: 4),
-                        Text(isHistory ? 'Archived / History' : '$daysOld Days Old', style: TextStyle(fontSize: 12, color: isHistory ? Colors.black54 : Colors.grey, fontWeight: FontWeight.bold)),
+                        Text('$daysOld Days Old', style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
-                  if (isHistory)
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                      onPressed: () {
-                        setState(() {
-                          _historyPlants.removeAt(index);
-                        });
-                      },
-                    )
-                  else
-                    const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
+                  const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
                 ],
               ),
             ),

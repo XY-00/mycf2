@@ -5,13 +5,15 @@ class PlantDetailsScreen extends StatefulWidget {
   final String initialName;
   final DateTime initialDate;
   final String initialAvatar;
+  final bool isHistoryView;
 
   const PlantDetailsScreen({
     Key? key, 
     required this.slotIndex, 
     required this.initialName, 
     required this.initialDate, 
-    required this.initialAvatar
+    required this.initialAvatar,
+    this.isHistoryView = false,
   }) : super(key: key);
 
   @override
@@ -41,6 +43,7 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
   int get _calcDays => DateTime.now().difference(_currentDate).inDays;
 
   void _openEditBottomSheet() {
+    if (widget.isHistoryView) return;
     final nameCtrl = TextEditingController(text: _currentName);
     String tempAvatar = _currentAvatar;
 
@@ -106,7 +109,25 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('$_currentName - Growth History', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _currentName,
+                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Growth History',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   IconButton(
                     icon: const Icon(Icons.close),
                     onPressed: () => Navigator.pop(context),
@@ -173,7 +194,7 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5CB85C)),
             onPressed: () {
               Navigator.pop(context); 
-              Navigator.pop(context, {'action': 'harvest'}); 
+              Navigator.pop(context, {'action': 'complete'}); 
             },
             child: const Text('Yes, Complete', style: TextStyle(color: Colors.white)),
           ),
@@ -210,7 +231,8 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     const Color primaryDarkGreen = Color(0xFF2C4A3E);
-    const Color unifiedCardBg = Color(0xFFEAF2E8); 
+    // 👑 换成非常浅、非常舒服的护眼浅绿色
+    const Color unifiedCardBg = Color(0xFFF0F5F1); 
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -228,7 +250,6 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
             Container(color: Colors.white.withOpacity(0.78)), 
             Column(
               children: [
-                // 顶部标题栏
                 Container(
                   width: double.infinity,
                   decoration: const BoxDecoration(
@@ -249,11 +270,13 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                             icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
                             onPressed: () => Navigator.pop(context, {'action': 'update', 'name': _currentName, 'date': _currentDate, 'avatar': _currentAvatar}),
                           ),
-                          Text('$_currentName (Slot ${widget.slotIndex + 1})', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3)),
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.white, size: 20),
-                            onPressed: _openEditBottomSheet,
-                          ),
+                          Text('Plant ${widget.slotIndex + 1}', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3)),
+                          widget.isHistoryView 
+                            ? const SizedBox(width: 40)
+                            : IconButton(
+                                icon: const Icon(Icons.edit, color: Colors.white, size: 20),
+                                onPressed: _openEditBottomSheet,
+                              ),
                         ],
                       ),
                     ),
@@ -266,7 +289,6 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // 1. Plant Details 区域标题
                         const Padding(
                           padding: EdgeInsets.only(left: 4.0, bottom: 8.0),
                           child: Text(
@@ -274,8 +296,6 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                             style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryDarkGreen)
                           ),
                         ),
-
-                        // 2. 基础信息卡片（已移除 Plant Name 前面的图标）
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
@@ -340,8 +360,6 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
-
-                        // 3. Soil Moisture Levels & Targets
                         const Padding(
                           padding: EdgeInsets.only(left: 4.0, bottom: 8.0),
                           child: Text(
@@ -441,27 +459,10 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
-
-                        // 4. Growth History
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Growth History', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
-                            GestureDetector(
-                              onTap: () => _openGrowthHistoryGallery(context),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.black12),
-                                ),
-                                child: const Text('View all', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
-                              ),
-                            )
-                          ],
+                        const Padding(
+                          padding: EdgeInsets.only(left: 4.0, bottom: 8.0),
+                          child: Text('Growth History', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
                         ),
-                        const SizedBox(height: 8),
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(14),
@@ -471,45 +472,65 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                             border: Border.all(color: Colors.black12),
                             boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6)],
                           ),
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(child: _growthThumbnail('assets/analytic_plant.jpg')),
-                              const SizedBox(width: 8),
-                              Expanded(child: _growthThumbnail('assets/analytic_plant.jpg')),
-                              const SizedBox(width: 8),
-                              Expanded(child: _growthThumbnail('assets/analytic_plant.jpg')),
+                              Row(
+                                children: [
+                                  Expanded(child: _growthThumbnail('assets/analytic_plant.jpg')),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: _growthThumbnail('assets/analytic_plant.jpg')),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: _growthThumbnail('assets/analytic_plant.jpg')),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: GestureDetector(
+                                  onTap: () => _openGrowthHistoryGallery(context),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.black12),
+                                    ),
+                                    child: const Text('View all', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         ),
                         const SizedBox(height: 30),
 
-                        // 5. Complete 按钮
-                        Center(
-                          child: SizedBox(
-                            width: MediaQuery.of(context).size.width * 0.85,
-                            height: 48,
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF5CB85C), 
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                elevation: 2,
+                        if (!widget.isHistoryView) ...[
+                          Center(
+                            child: SizedBox(
+                              width: MediaQuery.of(context).size.width * 0.85,
+                              height: 48,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF5CB85C), 
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  elevation: 2,
+                                ),
+                                onPressed: _confirmComplete,
+                                child: const Text('Complete', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
                               ),
-                              onPressed: _confirmComplete,
-                              child: const Text('Complete', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // 6. Delete 按钮
-                        Center(
-                          child: TextButton.icon(
-                            icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 18),
-                            label: const Text('Delete', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 13)),
-                            onPressed: _confirmDelete,
+                          const SizedBox(height: 12),
+                          Center(
+                            child: TextButton.icon(
+                              icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 18),
+                              label: const Text('Delete', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 13)),
+                              onPressed: _confirmDelete,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 20),
+                          const SizedBox(height: 20),
+                        ],
                       ],
                     ),
                   ),
