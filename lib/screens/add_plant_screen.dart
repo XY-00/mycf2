@@ -92,7 +92,6 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
           SafeArea(
             child: Column(
               children: [
-                // 顶部深绿色导航栏（已将 Slot 改为 Plant）
                 Container(
                   width: double.infinity,
                   decoration: const BoxDecoration(

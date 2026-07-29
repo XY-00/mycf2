@@ -1,29 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class PlantDetailsScreen extends StatefulWidget {
+class ActivePlantDetailsScreen extends StatefulWidget {
   final int slotIndex;
   final String initialName;
   final DateTime initialDate;
   final String initialAvatar;
-  final bool isHistoryView;
 
-  const PlantDetailsScreen({
+  const ActivePlantDetailsScreen({
     Key? key, 
     required this.slotIndex, 
     required this.initialName, 
     required this.initialDate, 
     required this.initialAvatar,
-    this.isHistoryView = false,
   }) : super(key: key);
 
   @override
-  State<PlantDetailsScreen> createState() => _PlantDetailsScreenState();
+  State<ActivePlantDetailsScreen> createState() => _ActivePlantDetailsScreenState();
 }
 
-class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
+class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
   late String _currentName;
   late DateTime _currentDate;
   late String _currentAvatar;
+
+  bool _isSensorConnected = false;
+  bool _isPumpConnected = false;
+  bool _isCheckingHardware = true;
 
   final Map<String, IconData> _avatarMap = {
     'Sunflower 🌻': Icons.wb_sunny_outlined,
@@ -38,12 +41,36 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
     _currentName = widget.initialName;
     _currentDate = widget.initialDate;
     _currentAvatar = widget.initialAvatar;
+    _fetchHardwareStatus();
+  }
+
+  Future<void> _fetchHardwareStatus() async {
+    try {
+      int slotNumber = widget.slotIndex + 1;
+      final response = await Supabase.instance.client
+          .from('hardware_status')
+          .select()
+          .eq('slot_number', slotNumber)
+          .maybeSingle();
+
+      if (response != null) {
+        setState(() {
+          _isSensorConnected = response['sensor_connected'] ?? false;
+          _isPumpConnected = response['pump_connected'] ?? false;
+          _isCheckingHardware = false;
+        });
+      } else {
+        setState(() => _isCheckingHardware = false);
+      }
+    } catch (e) {
+      setState(() => _isCheckingHardware = false);
+      print('Error fetching hardware status: $e');
+    }
   }
 
   int get _calcDays => DateTime.now().difference(_currentDate).inDays;
 
   void _openEditBottomSheet() {
-    if (widget.isHistoryView) return;
     final nameCtrl = TextEditingController(text: _currentName);
     String tempAvatar = _currentAvatar;
 
@@ -90,14 +117,30 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
     );
   }
 
+  // 👑 优化后的 View all 相册弹窗：按日期分组，时间显示为黑色字体
   void _openGrowthHistoryGallery(BuildContext context) {
+    // 模拟按日期分类的快照数据结构
+    final Map<String, List<Map<String, dynamic>>> groupedSnapshots = {
+      'Today, 29 July 2026': [
+        {'time': '12:00 PM', 'moisture': 64, 'image': 'assets/analytic_plant.jpg'},
+        {'time': '11:30 AM', 'moisture': 63, 'image': 'assets/analytic_plant.jpg'},
+        {'time': '11:00 AM', 'moisture': 62, 'image': 'assets/analytic_plant.jpg'},
+        {'time': '10:30 AM', 'moisture': 61, 'image': 'assets/analytic_plant.jpg'},
+        {'time': '10:00 AM', 'moisture': 60, 'image': 'assets/analytic_plant.jpg'},
+      ],
+      '28 July 2026': [
+        {'time': '12:00 PM', 'moisture': 58, 'image': 'assets/analytic_plant.jpg'},
+        {'time': '10:00 AM', 'moisture': 55, 'image': 'assets/analytic_plant.jpg'},
+      ],
+    };
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFFF4F7F5),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.75,
+        initialChildSize: 0.78,
         minChildSize: 0.5,
         maxChildSize: 0.95,
         expand: false,
@@ -120,6 +163,7 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
+                        // 👑 严格改为 Growth History
                         const Text(
                           'Growth History',
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54),
@@ -137,38 +181,45 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
               const Divider(),
               const SizedBox(height: 8),
               Expanded(
-                child: GridView.builder(
+                child: ListView(
                   controller: scrollController,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.0,
-                  ),
-                  itemCount: 8, 
-                  itemBuilder: (context, index) {
-                    return Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.black12),
-                        image: const DecorationImage(
-                          image: AssetImage('assets/analytic_plant.jpg'),
-                          fit: BoxFit.cover,
+                  children: groupedSnapshots.entries.map((entry) {
+                    String dateKey = entry.key;
+                    List<Map<String, dynamic>> snapshots = entry.value;
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          child: Text(
+                            dateKey,
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E)),
+                          ),
                         ),
-                      ),
-                      alignment: Alignment.bottomCenter,
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        color: Colors.black54,
-                        child: Text(
-                          'Day ${index * 5 + 1} Snapshot',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 1.1,
+                          ),
+                          itemCount: snapshots.length,
+                          itemBuilder: (context, index) {
+                            final item = snapshots[index];
+                            return _growthThumbnailWithMoisture(
+                              item['image'],
+                              item['moisture'],
+                              item['time'],
+                            );
+                          },
                         ),
-                      ),
+                        const SizedBox(height: 16),
+                      ],
                     );
-                  },
+                  }).toList(),
                 ),
               ),
             ],
@@ -231,8 +282,8 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     const Color primaryDarkGreen = Color(0xFF2C4A3E);
-    // 👑 换成非常浅、非常舒服的护眼浅绿色
     const Color unifiedCardBg = Color(0xFFF0F5F1); 
+    int slotNum = widget.slotIndex + 1;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -270,13 +321,11 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                             icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
                             onPressed: () => Navigator.pop(context, {'action': 'update', 'name': _currentName, 'date': _currentDate, 'avatar': _currentAvatar}),
                           ),
-                          Text('Plant ${widget.slotIndex + 1}', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3)),
-                          widget.isHistoryView 
-                            ? const SizedBox(width: 40)
-                            : IconButton(
-                                icon: const Icon(Icons.edit, color: Colors.white, size: 20),
-                                onPressed: _openEditBottomSheet,
-                              ),
+                          Text('Plant $slotNum', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3)),
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.white, size: 20),
+                            onPressed: _openEditBottomSheet,
+                          ),
                         ],
                       ),
                     ),
@@ -289,12 +338,69 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Padding(
+                          padding: const EdgeInsets.only(left: 4.0, bottom: 8.0),
+                          child: Text('Slot $slotNum Hardware Status', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
+                        ),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: unifiedCardBg,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.black12),
+                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6)],
+                          ),
+                          child: _isCheckingHardware
+                              ? const Center(child: Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator(strokeWidth: 2, color: primaryDarkGreen)))
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text('Soil Moisture Sensor $slotNum', style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: _isSensorConnected ? Colors.green.shade50 : Colors.red.shade50,
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: _isSensorConnected ? Colors.green.shade200 : Colors.red.shade200),
+                                          ),
+                                          child: Text(
+                                            _isSensorConnected ? 'Connected' : 'Unconnected',
+                                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _isSensorConnected ? Colors.green.shade700 : Colors.red.shade700),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text('Water Pump $slotNum', style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: _isPumpConnected ? Colors.blue.shade50 : Colors.red.shade50,
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: _isPumpConnected ? Colors.blue.shade200 : Colors.red.shade200),
+                                          ),
+                                          child: Text(
+                                            _isPumpConnected ? 'Connected' : 'Unconnected',
+                                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _isPumpConnected ? Colors.blue.shade700 : Colors.red.shade700),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                        ),
+                        const SizedBox(height: 20),
+
                         const Padding(
                           padding: EdgeInsets.only(left: 4.0, bottom: 8.0),
-                          child: Text(
-                            'Plant Details', 
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryDarkGreen)
-                          ),
+                          child: Text('Plant Details', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
                         ),
                         Container(
                           width: double.infinity,
@@ -320,10 +426,7 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                                     child: Icon(_avatarMap[_currentAvatar] ?? Icons.eco, size: 54, color: primaryDarkGreen),
                                   ),
                                   const SizedBox(height: 6),
-                                  const Text(
-                                    'Moisture: 62%',
-                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
-                                  ),
+                                  const Text('Moisture: 62%', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
                                 ],
                               ),
                               const SizedBox(width: 16),
@@ -331,14 +434,9 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text('Plant Name', style: TextStyle(fontSize: 11, fontStyle: FontStyle.normal, color: Colors.black54, fontWeight: FontWeight.bold)),
+                                    const Text('Plant Name', style: TextStyle(fontSize: 11, color: Colors.black54, fontWeight: FontWeight.bold)),
                                     const SizedBox(height: 2),
-                                    Text(
-                                      _currentName, 
-                                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                                    Text(_currentName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis),
                                     const SizedBox(height: 12),
                                     Row(
                                       children: [
@@ -347,7 +445,7 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                                         Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Text('Age: $_calcDays Days Old', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
+                                            Text('Age: $_calcDays Days', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
                                             Text('Planted: ${_currentDate.day}/${_currentDate.month}/${_currentDate.year}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
                                           ],
                                         )
@@ -362,10 +460,7 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                         const SizedBox(height: 20),
                         const Padding(
                           padding: EdgeInsets.only(left: 4.0, bottom: 8.0),
-                          child: Text(
-                            'Soil Moisture Levels & Targets', 
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryDarkGreen)
-                          ),
+                          child: Text('Soil Moisture Levels & Targets', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
                         ),
                         Container(
                           width: double.infinity,
@@ -391,70 +486,6 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                                   ],
                                 ),
                               ),
-                              const SizedBox(height: 12),
-                              Column(
-                                children: [
-                                  LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      double totalWidth = constraints.maxWidth;
-                                      double pos45 = totalWidth * 0.20;
-                                      double pos59 = totalWidth * 0.50;
-                                      double pos75 = totalWidth * 0.80;
-
-                                      return Column(
-                                        children: [
-                                          Stack(
-                                            alignment: Alignment.centerLeft,
-                                            children: [
-                                              Container(
-                                                height: 12,
-                                                width: totalWidth,
-                                                decoration: BoxDecoration(
-                                                  borderRadius: BorderRadius.circular(6),
-                                                  gradient: const LinearGradient(
-                                                    colors: [Color(0xFFF8D7DA), Color(0xFFFFD54F), Color(0xFFA3E4D7)],
-                                                  ),
-                                                  border: Border.all(color: Colors.black26, width: 0.8),
-                                                ),
-                                              ),
-                                              Positioned(
-                                                left: pos45 - 1.25,
-                                                child: Container(width: 2.5, height: 16, color: const Color(0xFF856404)),
-                                              ),
-                                              Positioned(
-                                                left: pos59 - 1.25,
-                                                child: Container(width: 2.5, height: 16, color: Colors.red),
-                                              ),
-                                              Positioned(
-                                                left: pos75 - 1.25,
-                                                child: Container(width: 2.5, height: 16, color: Colors.green),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Stack(
-                                            children: [
-                                              const SizedBox(height: 16, width: double.infinity),
-                                              Positioned(
-                                                left: pos45 - 14,
-                                                child: const Text('45%', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.black87)),
-                                              ),
-                                              Positioned(
-                                                left: pos59 - 14,
-                                                child: const Text('59%', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.black87)),
-                                              ),
-                                              Positioned(
-                                                left: pos75 - 14,
-                                                child: const Text('75%', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.black87)),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  ),
-                                ],
-                              )
                             ],
                           ),
                         ),
@@ -477,11 +508,11 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                             children: [
                               Row(
                                 children: [
-                                  Expanded(child: _growthThumbnail('assets/analytic_plant.jpg')),
+                                  Expanded(child: _growthThumbnailWithMoisture('assets/analytic_plant.jpg', 62, '12:00 PM')),
                                   const SizedBox(width: 8),
-                                  Expanded(child: _growthThumbnail('assets/analytic_plant.jpg')),
+                                  Expanded(child: _growthThumbnailWithMoisture('assets/analytic_plant.jpg', 58, '12:00 PM')),
                                   const SizedBox(width: 8),
-                                  Expanded(child: _growthThumbnail('assets/analytic_plant.jpg')),
+                                  Expanded(child: _growthThumbnailWithMoisture('assets/analytic_plant.jpg', 65, '12:00 PM')),
                                 ],
                               ),
                               const SizedBox(height: 10),
@@ -491,11 +522,7 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                                   onTap: () => _openGrowthHistoryGallery(context),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: Colors.black12),
-                                    ),
+                                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.black12)),
                                     child: const Text('View all', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
                                   ),
                                 ),
@@ -504,33 +531,26 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
                           ),
                         ),
                         const SizedBox(height: 30),
-
-                        if (!widget.isHistoryView) ...[
-                          Center(
-                            child: SizedBox(
-                              width: MediaQuery.of(context).size.width * 0.85,
-                              height: 48,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF5CB85C), 
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  elevation: 2,
-                                ),
-                                onPressed: _confirmComplete,
-                                child: const Text('Complete', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-                              ),
+                        Center(
+                          child: SizedBox(
+                            width: MediaQuery.of(context).size.width * 0.85,
+                            height: 48,
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5CB85C), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 2),
+                              onPressed: _confirmComplete,
+                              child: const Text('Complete', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          Center(
-                            child: TextButton.icon(
-                              icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 18),
-                              label: const Text('Delete', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 13)),
-                              onPressed: _confirmDelete,
-                            ),
+                        ),
+                        const SizedBox(height: 12),
+                        Center(
+                          child: TextButton.icon(
+                            icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 18),
+                            label: const Text('Delete', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 13)),
+                            onPressed: _confirmDelete,
                           ),
-                          const SizedBox(height: 20),
-                        ],
+                        ),
+                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
@@ -546,52 +566,30 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
   Widget _screenshotBox(String title, String percent, String desc, Color dotColor, Color boxBgColor, Color textColor) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-      decoration: BoxDecoration(
-        color: boxBgColor, 
-        borderRadius: BorderRadius.circular(12), 
-        border: Border.all(color: dotColor.withOpacity(0.5), width: 1.2),
-      ),
+      decoration: BoxDecoration(color: boxBgColor, borderRadius: BorderRadius.circular(12), border: Border.all(color: dotColor.withOpacity(0.5), width: 1.2)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Expanded(
-                child: Text(
-                  title, 
-                  maxLines: 1, 
-                  overflow: TextOverflow.visible,
-                  style: TextStyle(fontSize: 8, color: textColor, fontWeight: FontWeight.bold)
-                ),
-              ),
-              const SizedBox(width: 2),
+              Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.visible, style: TextStyle(fontSize: 8, color: textColor, fontWeight: FontWeight.bold))),
               Container(width: 6, height: 6, decoration: BoxDecoration(shape: BoxShape.circle, color: dotColor)),
             ],
           ), 
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 6.0),
-            child: Center(
-              child: Text(
-                percent, 
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor, height: 1.0)
-              ),
-            ),
+            child: Center(child: Text(percent, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textColor, height: 1.0))),
           ),
-          Text(
-            desc, 
-            style: TextStyle(fontSize: 7.5, color: textColor.withOpacity(0.85), height: 1.15),
-            maxLines: 3,
-            overflow: TextOverflow.visible,
-          ),
+          Text(desc, style: TextStyle(fontSize: 7.5, color: textColor.withOpacity(0.85), height: 1.15), maxLines: 3, overflow: TextOverflow.visible),
         ],
       ),
     );
   }
 
-  Widget _growthThumbnail(String assetPath) {
+  // 👑 时间已改为黑色粗体
+  Widget _growthThumbnailWithMoisture(String assetPath, int moisturePercent, String timeString) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: Container(
@@ -602,6 +600,37 @@ class _PlantDetailsScreenState extends State<PlantDetailsScreen> {
             image: AssetImage(assetPath),
             fit: BoxFit.cover,
           ),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: 4,
+              left: 4,
+              child: Text(
+                timeString,
+                style: const TextStyle(
+                  color: Colors.black87, // 黑色字体
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 4,
+              right: 4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2C4A3E).withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '$moisturePercent%',
+                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

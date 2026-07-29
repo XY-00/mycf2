@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'plant_details_screen.dart';
+import 'history_plant_details_screen.dart';
 
 class PlantHistoryScreen extends StatefulWidget {
   final List<Map<String, dynamic>> historyPlants;
@@ -78,7 +78,6 @@ class _PlantHistoryScreenState extends State<PlantHistoryScreen> {
       );
     }
 
-    // 确保传入的历史列表按 archived_at 严格降序排列
     List<Map<String, dynamic>> sortedPlants = List.from(widget.historyPlants);
     sortedPlants.sort((a, b) {
       DateTime timeA = a['archived_at'] ?? DateTime.now();
@@ -104,7 +103,6 @@ class _PlantHistoryScreenState extends State<PlantHistoryScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
       children: sortedYears.map((year) {
         var monthsMap = groupedHistory[year]!;
-        // 👑 关键修复：月份也必须降序排列（比如 8月 在 7月 上面，最新的排在最前）
         List<int> sortedMonths = monthsMap.keys.toList()..sort((a, b) => b.compareTo(a));
 
         return Column(
@@ -161,12 +159,12 @@ class _PlantHistoryScreenState extends State<PlantHistoryScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => PlantDetailsScreen(
+                              builder: (context) => HistoryPlantDetailsScreen(
                                 slotIndex: (plant['slot_number'] ?? 1) - 1, 
                                 initialName: plant['name'],
                                 initialDate: plant['date'],
                                 initialAvatar: plant['avatar'],
-                                isHistoryView: true,
+                                archivedDate: plant['archived_at'], // 传入归档日期以冻结年龄
                               ),
                             ),
                           );

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'add_plant_screen.dart'; 
-import 'plant_details_screen.dart'; 
+import 'active_plant_details_screen.dart';
 import 'plant_history_screen.dart';
 
 class PlantProfileScreen extends StatefulWidget {
@@ -42,7 +42,6 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
           .eq('status', 'active')
           .order('slot_number', ascending: true);
 
-      // 👑 关键修复1：在 Supabase 查询时直接按 archived_at 倒序拉取（最迟归档的在最前）
       final historyResponse = await Supabase.instance.client
           .from('plants')
           .select()
@@ -62,7 +61,6 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
 
       final List<Map<String, dynamic>> history = [];
       for (var item in historyResponse) {
-        // 👑 关键修复2：使用 insert(0) 确保每次追加时，后删除的强行排在最前面
         history.insert(0, {
           'id': item['id'],
           'slot_number': item['slot_number'] ?? 1,
@@ -74,7 +72,6 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
         });
       }
 
-      // 双重保险：在前端再次进行绝对降序排序
       history.sort((a, b) {
         DateTime timeA = a['archived_at'];
         DateTime timeB = b['archived_at'];
@@ -310,12 +307,11 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
               final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => PlantDetailsScreen(
+                  builder: (context) => ActivePlantDetailsScreen(
                     slotIndex: slotNum - 1, 
                     initialName: plant['name'],
                     initialDate: plant['date'],
                     initialAvatar: plant['avatar'],
-                    isHistoryView: false,
                   ),
                 ),
               );
