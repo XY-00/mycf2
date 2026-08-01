@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 
 class HistoryPlantDetailsScreen extends StatefulWidget {
@@ -26,13 +27,6 @@ class _HistoryPlantDetailsScreenState extends State<HistoryPlantDetailsScreen> {
   late String _currentAvatar;
   late DateTime _archivedDate;
 
-  final Map<String, IconData> _avatarMap = {
-    'Sunflower 🌻': Icons.wb_sunny_outlined,
-    'Cactus 🌵': Icons.grass_rounded, 
-    'Rose 🌹': Icons.favorite_border_rounded,
-    'Fern 🌿': Icons.eco_outlined,
-  };
-
   @override
   void initState() {
     super.initState();
@@ -44,7 +38,6 @@ class _HistoryPlantDetailsScreenState extends State<HistoryPlantDetailsScreen> {
 
   int get _calcDays => _archivedDate.difference(_currentDate).inDays;
 
-  // 👑 历史植物的 View all 相册弹窗：按日期分组，标题为 Growth History，时间为黑色粗体
   void _openGrowthHistoryGallery(BuildContext context) {
     final Map<String, List<Map<String, dynamic>>> groupedSnapshots = {
       '29 July 2026 (Archived Day)': [
@@ -87,7 +80,6 @@ class _HistoryPlantDetailsScreenState extends State<HistoryPlantDetailsScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
-                        // 👑 严格改为 Growth History
                         const Text(
                           'Growth History',
                           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54),
@@ -157,6 +149,7 @@ class _HistoryPlantDetailsScreenState extends State<HistoryPlantDetailsScreen> {
   Widget build(BuildContext context) {
     const Color primaryDarkGreen = Color(0xFF2C4A3E);
     const Color unifiedCardBg = Color(0xFFF0F5F1); 
+    bool isLocalFile = _currentAvatar.startsWith('/') || _currentAvatar.startsWith('file://');
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -234,14 +227,21 @@ class _HistoryPlantDetailsScreenState extends State<HistoryPlantDetailsScreen> {
                             children: [
                               Column(
                                 children: [
+                                  // 👑 历史详情页中的头像渲染（完美支持本地上传图片与默认表情同步）
                                   Container(
-                                    padding: const EdgeInsets.all(16),
+                                    width: 60,
+                                    height: 60,
                                     decoration: BoxDecoration(
                                       color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
+                                      shape: BoxShape.circle,
                                       border: Border.all(color: Colors.black12),
+                                      image: isLocalFile
+                                          ? DecorationImage(image: FileImage(File(_currentAvatar)), fit: BoxFit.cover)
+                                          : null,
                                     ),
-                                    child: Icon(_avatarMap[_currentAvatar] ?? Icons.eco, size: 54, color: primaryDarkGreen),
+                                    child: !isLocalFile
+                                        ? Center(child: Text(_currentAvatar.contains('🌻') ? '🌻' : '🌿', style: const TextStyle(fontSize: 26)))
+                                        : null,
                                   ),
                                   const SizedBox(height: 6),
                                   const Text('Moisture: 62%', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
@@ -386,7 +386,6 @@ class _HistoryPlantDetailsScreenState extends State<HistoryPlantDetailsScreen> {
     );
   }
 
-  // 👑 时间已改为黑色粗体
   Widget _growthThumbnailWithMoisture(String assetPath, int moisturePercent, String timeString) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
@@ -407,7 +406,7 @@ class _HistoryPlantDetailsScreenState extends State<HistoryPlantDetailsScreen> {
               child: Text(
                 timeString,
                 style: const TextStyle(
-                  color: Colors.black87, // 黑色粗体字体
+                  color: Colors.black87,
                   fontSize: 9.5,
                   fontWeight: FontWeight.bold,
                 ),

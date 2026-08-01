@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'history_plant_details_screen.dart';
 
@@ -16,13 +17,6 @@ class PlantHistoryScreen extends StatefulWidget {
 }
 
 class _PlantHistoryScreenState extends State<PlantHistoryScreen> {
-  final Map<String, IconData> _avatarMap = {
-    'Sunflower 🌻': Icons.wb_sunny_outlined,
-    'Cactus 🌵': Icons.grass_rounded, 
-    'Rose 🌹': Icons.favorite_border_rounded,
-    'Fern 🌿': Icons.eco_outlined,
-  };
-
   final List<String> _monthNames = [
     '',
     'January',
@@ -42,6 +36,7 @@ class _PlantHistoryScreenState extends State<PlantHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     const Color softIvoryWhite = Color(0xFFF9FBFA);
+    const Color primaryDarkGreen = Color(0xFF2C4A3E);
 
     if (widget.historyPlants.isEmpty) {
       return Center(
@@ -144,6 +139,10 @@ class _PlantHistoryScreenState extends State<PlantHistoryScreen> {
                     String actionType = plant['action_type'];
                     String statusText = actionType == 'complete' ? 'Complete' : 'Delete';
                     Color statusColor = actionType == 'complete' ? Colors.green.shade700 : Colors.redAccent;
+                    
+                    // 👑 关键：判断是否为本地相册/拍照图片路径，保持头像前后完全一致
+                    String avatarStr = plant['avatar'] ?? '';
+                    bool isLocalFile = avatarStr.startsWith('/') || avatarStr.startsWith('file://');
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
@@ -164,7 +163,7 @@ class _PlantHistoryScreenState extends State<PlantHistoryScreen> {
                                 initialName: plant['name'],
                                 initialDate: plant['date'],
                                 initialAvatar: plant['avatar'],
-                                archivedDate: plant['archived_at'], // 传入归档日期以冻结年龄
+                                archivedDate: plant['archived_at'],
                               ),
                             ),
                           );
@@ -173,14 +172,21 @@ class _PlantHistoryScreenState extends State<PlantHistoryScreen> {
                           padding: const EdgeInsets.all(16.0),
                           child: Row(
                             children: [
+                              // 👑 历史列表中的头像渲染逻辑（与 Active 保持一致）
                               Container(
-                                padding: const EdgeInsets.all(10),
+                                width: 50,
+                                height: 50,
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.withOpacity(0.15), 
-                                  borderRadius: BorderRadius.circular(12),
+                                  color: const Color(0xFFEAF2E8), 
+                                  shape: BoxShape.circle,
                                   border: Border.all(color: Colors.black12),
+                                  image: isLocalFile
+                                      ? DecorationImage(image: FileImage(File(avatarStr)), fit: BoxFit.cover)
+                                      : null,
                                 ),
-                                child: Icon(_avatarMap[plant['avatar']] ?? Icons.eco, size: 32, color: Colors.black54),
+                                child: !isLocalFile
+                                    ? Center(child: Text(avatarStr.contains('🌻') ? '🌻' : '🌿', style: const TextStyle(fontSize: 22)))
+                                    : null,
                               ),
                               const SizedBox(width: 16),
                               Expanded(

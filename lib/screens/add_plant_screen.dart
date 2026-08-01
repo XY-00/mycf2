@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 class DateInputFormatter extends TextInputFormatter {
   @override
@@ -36,9 +38,8 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   final _dateController = TextEditingController();
   
   DateTime _selectedDate = DateTime.now();
-  String _selectedAvatar = 'Sunflower 🌻';
-
-  final List<String> _avatarsList = ['Sunflower 🌻', 'Cactus 🌵', 'Rose 🌹', 'Fern 🌿'];
+  File? _selectedImageFile;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -71,6 +72,52 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
     }
   }
 
+  Future<void> _pickImageFromSource(ImageSource source) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(source: source, imageQuality: 80);
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImageFile = File(pickedFile.path);
+        });
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+    }
+  }
+
+  void _showImageSourceBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined, color: Color(0xFF2C4A3E)),
+              title: const Text('Take Photo', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImageFromSource(ImageSource.camera);
+              },
+            ),
+            const Divider(color: Colors.black12),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined, color: Color(0xFF2C4A3E)),
+              title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImageFromSource(ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const Color primaryDarkGreen = Color(0xFF2C4A3E);
@@ -80,15 +127,8 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          Positioned.fill(
-            child: Image.asset(
-              'assets/app_background.png',
-              fit: BoxFit.cover,
-            ),
-          ),
-          Positioned.fill(
-            child: Container(color: Colors.white.withOpacity(0.78)),
-          ),
+          Positioned.fill(child: Image.asset('assets/app_background.png', fit: BoxFit.cover)),
+          Positioned.fill(child: Container(color: Colors.white.withOpacity(0.78))),
           SafeArea(
             child: Column(
               children: [
@@ -96,10 +136,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
                   width: double.infinity,
                   decoration: const BoxDecoration(
                     color: primaryDarkGreen,
-                    borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(20),
-                      bottomRight: Radius.circular(20),
-                    ),
+                    borderRadius: BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20)),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
@@ -123,126 +160,98 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
                 ),
                 Expanded(
                   child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).viewInsets.bottom,
-                    ),
+                    padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Center(
+                            child: Stack(
+                              children: [
+                                GestureDetector(
+                                  onTap: _showImageSourceBottomSheet,
+                                  child: Container(
+                                    width: 95,
+                                    height: 95,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Colors.white,
+                                      border: Border.all(color: primaryDarkGreen, width: 2),
+                                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 6)],
+                                      image: _selectedImageFile != null
+                                          ? DecorationImage(image: FileImage(_selectedImageFile!), fit: BoxFit.cover)
+                                          : null,
+                                    ),
+                                    child: _selectedImageFile == null
+                                        ? const Center(child: Icon(Icons.eco_rounded, size: 42, color: primaryDarkGreen))
+                                        : null,
+                                  ),
+                                ),
+                                Positioned(
+                                  bottom: 0,
+                                  right: 0,
+                                  child: GestureDetector(
+                                    onTap: _showImageSourceBottomSheet,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: const BoxDecoration(shape: BoxShape.circle, color: primaryDarkGreen),
+                                      child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          const Padding(
+                            padding: EdgeInsets.only(left: 4.0, bottom: 6.0),
+                            child: Text('Plant Name', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
+                          ),
                           TextField(
                             controller: _nameController,
                             decoration: InputDecoration(
-                              hintText: 'Plant Name',
+                              hintText: 'Enter plant name',
                               filled: true,
                               fillColor: Colors.white,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Colors.black12),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Colors.black12),
-                              ),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.black12)),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.black12)),
                             ),
                           ),
                           const SizedBox(height: 16),
-                          DropdownButtonFormField<String>(
-                            value: _selectedAvatar,
-                            decoration: InputDecoration(
-                              labelText: 'Select Plant',
-                              filled: true,
-                              fillColor: Colors.white,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Colors.black12),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Colors.black12),
-                              ),
-                            ),
-                            items: _avatarsList.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                            onChanged: (val) => setState(() => _selectedAvatar = val!),
+                          const Padding(
+                            padding: EdgeInsets.only(left: 4.0, bottom: 6.0),
+                            child: Text('Date (DD/MM/YYYY)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
                           ),
-                          const SizedBox(height: 16),
                           TextField(
                             controller: _dateController,
                             keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                              DateInputFormatter(),
-                            ],
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly, DateInputFormatter()],
                             decoration: InputDecoration(
-                              labelText: 'Date (DD/MM/YYYY)',
+                              hintText: 'DD/MM/YYYY',
                               filled: true,
                               fillColor: Colors.white,
-                              suffixIcon: IconButton(
-                                icon: const Icon(Icons.calendar_today_outlined, color: primaryDarkGreen),
-                                onPressed: _pickDate,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Colors.black12),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Colors.black12),
-                              ),
+                              suffixIcon: IconButton(icon: const Icon(Icons.calendar_today_outlined, color: primaryDarkGreen), onPressed: _pickDate),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.black12)),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.black12)),
                             ),
-                            onChanged: (value) {
-                              try {
-                                final parts = value.split('/');
-                                if (parts.length == 3 && parts[2].length == 4) {
-                                  int day = int.parse(parts[0]);
-                                  int month = int.parse(parts[1]);
-                                  int year = int.parse(parts[2]);
-                                  
-                                  DateTime inputDate = DateTime(year, month, day);
-                                  DateTime now = DateTime.now();
-                                  DateTime fiftyYearsAgo = DateTime(now.year - 50, now.month, now.day);
-
-                                  if (inputDate.isBefore(fiftyYearsAgo) || inputDate.isAfter(now)) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Date can be up to 50 years in the past')),
-                                    );
-                                  } else {
-                                    setState(() {
-                                      _selectedDate = inputDate;
-                                    });
-                                  }
-                                }
-                              } catch (_) {}
-                            },
                           ),
                           const SizedBox(height: 40),
                           SizedBox(
                             width: double.infinity,
                             height: 50,
                             child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFD96B27),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                elevation: 2,
-                              ),
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD96B27), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 2),
                               onPressed: () {
                                 if (_nameController.text.trim().isNotEmpty) {
-                                  widget.onAdd(
-                                    _nameController.text.trim(), 
-                                    _selectedDate, 
-                                    _selectedAvatar
-                                  );
+                                  String avatarResult = _selectedImageFile != null ? _selectedImageFile!.path : 'Sunflower 🌻';
+                                  widget.onAdd(_nameController.text.trim(), _selectedDate, avatarResult);
                                   Navigator.pop(context);
                                 } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Please enter plant name')),
-                                  );
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter plant name')));
                                 }
                               },
-                              child: const Text(
-                                'ADD PLANT',
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5),
-                              ),
+                              child: const Text('ADD PLANT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5)),
                             ),
                           ),
                         ],

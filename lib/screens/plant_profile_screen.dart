@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'add_plant_screen.dart'; 
@@ -20,13 +21,6 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
 
   @override
   bool get wantKeepAlive => true;
-
-  final Map<String, IconData> _avatarMap = {
-    'Sunflower 🌻': Icons.wb_sunny_outlined,
-    'Cactus 🌵': Icons.grass_rounded, 
-    'Rose 🌹': Icons.favorite_border_rounded,
-    'Fern 🌿': Icons.eco_outlined,
-  };
 
   @override
   void initState() {
@@ -136,6 +130,8 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
 
     return Scaffold(
       backgroundColor: Colors.transparent,
+      // 👑 关键：设置为 false，防止键盘弹起时挤压或移动整个 Scaffold 背景
+      resizeToAvoidBottomInset: false,
       floatingActionButton: (_selectedSegment == 0 && _activePlants.length < 3)
           ? FloatingActionButton(
               backgroundColor: primaryDarkGreen,
@@ -144,104 +140,118 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
               child: const Icon(Icons.add, color: Colors.white, size: 28),
             )
           : null,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: primaryDarkGreen))
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: primaryDarkGreen, 
-                    borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(20),
-                      bottomRight: Radius.circular(20),
-                    ),
-                  ),
-                  child: SafeArea(
-                    bottom: false,
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 20.0, right: 20.0, top: 14.0, bottom: 16.0), 
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center, 
-                        children: const [
-                          Text('Plant Profile', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3)),
-                        ],
+      body: Stack(
+        children: [
+          // 👑 背景图固定在底层，不随键盘移动
+          Positioned.fill(
+            child: Image.asset(
+              'assets/app_background.png',
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned.fill(
+            child: Container(color: Colors.white.withOpacity(0.78)),
+          ),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator(color: primaryDarkGreen))
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      decoration: const BoxDecoration(
+                        color: primaryDarkGreen, 
+                        borderRadius: BorderRadius.only(
+                          bottomLeft: Radius.circular(20),
+                          bottomRight: Radius.circular(20),
+                        ),
+                      ),
+                      child: SafeArea(
+                        bottom: false,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 20.0, right: 20.0, top: 14.0, bottom: 16.0), 
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center, 
+                            children: const [
+                              Text('Plant Profile', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3)),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                  child: Container(
-                    height: 48,
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: Colors.black12),
-                      boxShadow: [
-                        BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => setState(() => _selectedSegment = 0),
-                            child: Container(
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: _selectedSegment == 0 ? const Color(0xFF497E66) : Colors.transparent,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                'Active Plants',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  color: _selectedSegment == 0 ? Colors.white : Colors.black54,
+                    const SizedBox(height: 14),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      child: Container(
+                        height: 48,
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: Colors.black12),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() => _selectedSegment = 0),
+                                child: Container(
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: _selectedSegment == 0 ? const Color(0xFF497E66) : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    'Active Plants',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                      color: _selectedSegment == 0 ? Colors.white : Colors.black54,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => setState(() => _selectedSegment = 1),
-                            child: Container(
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: _selectedSegment == 1 ? const Color(0xFF497E66) : Colors.transparent,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                'History',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  color: _selectedSegment == 1 ? Colors.white : Colors.black54,
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() => _selectedSegment = 1),
+                                child: Container(
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: _selectedSegment == 1 ? const Color(0xFF497E66) : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    'History',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                      color: _selectedSegment == 1 ? Colors.white : Colors.black54,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: _selectedSegment == 0
+                          ? (_activePlants.isEmpty ? _buildEmptyPlaceholder() : _buildActivePlantList(softIvoryWhite, primaryDarkGreen))
+                          : PlantHistoryScreen(
+                              historyPlants: _historyPlants,
+                              onRefreshNeeded: _fetchPlantsFromSupabase,
+                            ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: _selectedSegment == 0
-                      ? (_activePlants.isEmpty ? _buildEmptyPlaceholder() : _buildActivePlantList(softIvoryWhite, primaryDarkGreen))
-                      : PlantHistoryScreen(
-                          historyPlants: _historyPlants,
-                          onRefreshNeeded: _fetchPlantsFromSupabase,
-                        ),
-                ),
-              ],
-            ),
+        ],
+      ),
     );
   }
 
@@ -292,6 +302,8 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
         final int daysOld = DateTime.now().difference(plant['date']).inDays;
         int slotNum = plant['slot_number'] ?? 1;
         String formattedTitle = 'Plant $slotNum: ${plant['name']}';
+        String avatarStr = plant['avatar'] ?? '';
+        bool isLocalFile = avatarStr.startsWith('/') || avatarStr.startsWith('file://');
 
         return Container(
           margin: const EdgeInsets.only(bottom: 14),
@@ -350,13 +362,19 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    width: 50,
+                    height: 50,
                     decoration: BoxDecoration(
                       color: const Color(0xFFEAF2E8), 
-                      borderRadius: BorderRadius.circular(12),
+                      shape: BoxShape.circle,
                       border: Border.all(color: Colors.black12),
+                      image: isLocalFile
+                          ? DecorationImage(image: FileImage(File(avatarStr)), fit: BoxFit.cover)
+                          : null,
                     ),
-                    child: Icon(_avatarMap[plant['avatar']] ?? Icons.eco, size: 32, color: primaryDarkGreen),
+                    child: !isLocalFile
+                        ? Center(child: Text(avatarStr.contains('🌻') ? '🌻' : '🌿', style: const TextStyle(fontSize: 22)))
+                        : null,
                   ),
                   const SizedBox(width: 16),
                   Expanded(

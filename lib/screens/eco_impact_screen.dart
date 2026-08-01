@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 
 class EcoImpactScreen extends StatefulWidget {
   const EcoImpactScreen({Key? key}) : super(key: key);
@@ -25,6 +26,71 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
         _profileName = user.userMetadata?['name'] ?? user.email?.split('@').first ?? 'Lee Xin Yi';
       });
     }
+  }
+
+  // 👑 下载功能：模拟生成并保存环保报告
+  void _handleDownload() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Eco Impact report downloaded successfully!'),
+        backgroundColor: Color(0xFF2C4A3E),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // 👑 分享功能：调用系统 Share 插件
+  void _handleShare() {
+    Share.share(
+      'Check out my Eco Impact Grade A (Top 5% of Farmers) on CarboFarm! Total Carbon Saved: 146.0 mg CO2e.',
+      subject: 'My CarboFarm Eco Impact',
+    );
+  }
+
+  // 👑 数据对比弹窗
+  void _showDataComparisonDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Data Comparison', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
+        content: const Text(
+          '• Your Carbon Savings: 146.0 mg CO2e\n'
+          '• Community Average: 95.0 mg CO2e\n'
+          '• Performance: You are performing 53% better than the average farmer this month!',
+          style: TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2C4A3E)),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 👑 数据导出弹窗
+  void _showDataExportDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Data Export', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
+        content: const Text(
+          'Your harvesting history and carbon footprint records have been successfully exported as a CSV file.',
+          style: TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2C4A3E)),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -97,56 +163,70 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
                           ],
                         ),
                         const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Divider(color: Colors.black12)),
-                        Stack(
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.start, 
                           children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.start, 
-                              children: [
-                                CircleAvatar(radius: 20, backgroundColor: primaryDarkGreen.withOpacity(0.3), child: const Text('A', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black))),
-                                const SizedBox(width: 14),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: const [
-                                    Text('Eco Friendly Grade', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
-                                    Text('Top 5% of Farmers', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black54)),
-                                  ],
-                                ),
+                            CircleAvatar(radius: 20, backgroundColor: primaryDarkGreen.withOpacity(0.3), child: const Text('A', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black))),
+                            const SizedBox(width: 14),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: const [
+                                Text('Eco Friendly Grade', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
+                                Text('Top 5% of Farmers', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black54)),
                               ],
                             ),
-                            Positioned(
-                              bottom: 0,
-                              right: 0,
-                              child: Row(
-                                children: [
-                                  GestureDetector(
-                                    onTap: () {}, 
-                                    child: Container(
-                                      padding: const EdgeInsets.all(5),
-                                      decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.black12)),
-                                      child: const Icon(Icons.download_rounded, size: 14, color: primaryDarkGreen),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  GestureDetector(
-                                    onTap: () {}, 
-                                    child: Container(
-                                      padding: const EdgeInsets.all(5),
-                                      decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.black12)),
-                                      child: const Icon(Icons.share_rounded, size: 14, color: primaryDarkGreen),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
                           ],
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      GestureDetector(
+                        onTap: _handleDownload, 
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: containerBg, 
+                            borderRadius: BorderRadius.circular(10), 
+                            border: Border.all(color: Colors.black12),
+                          ),
+                          child: Row(
+                            children: const [
+                              Icon(Icons.download_rounded, size: 14, color: primaryDarkGreen),
+                              SizedBox(width: 4),
+                              Text('Download', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _handleShare, 
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: containerBg, 
+                            borderRadius: BorderRadius.circular(10), 
+                            border: Border.all(color: Colors.black12),
+                          ),
+                          child: Row(
+                            children: const [
+                              Icon(Icons.share_rounded, size: 14, color: primaryDarkGreen),
+                              SizedBox(width: 4),
+                              Text('Share', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0), 
               child: Row(
@@ -198,9 +278,9 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
                   const SizedBox(height: 14),
                   Row(
                     children: [
-                      Expanded(child: _buildActionBtn('Data Comparison')),
+                      Expanded(child: _buildActionBtn('Data Comparison', _showDataComparisonDialog)),
                       const SizedBox(width: 10),
-                      Expanded(child: _buildActionBtn('Data Export')),
+                      Expanded(child: _buildActionBtn('Data Export', _showDataExportDialog)),
                     ],
                   ),
                 ],
@@ -283,15 +363,19 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
     );
   }
 
-  Widget _buildActionBtn(String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFA2B5A9), 
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.black12), 
+  Widget _buildActionBtn(String text, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFA2B5A9), 
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.black12), 
+        ),
+        child: Text(text, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87)),
       ),
-      child: Text(text, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87)),
     );
   }
 }
