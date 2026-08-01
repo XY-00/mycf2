@@ -28,17 +28,45 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
     _fetchPlantsFromSupabase();
   }
 
+  // 👑 动态获取当前用户的显示名称（优先从 metadata 取，其次取邮箱前缀）
+  String _getCurrentDisplayName() {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return 'Xin Yi';
+    final metadataName = user.userMetadata?['name'];
+    if (metadataName != null && metadataName.toString().isNotEmpty) {
+      return metadataName.toString();
+    }
+    if (user.email != null && user.email!.contains('@')) {
+      return user.email!.split('@')[0];
+    }
+    return 'Xin Yi';
+  }
+
   Future<void> _fetchPlantsFromSupabase() async {
     try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) {
+        setState(() {
+          _activePlants = [];
+          _historyPlants = [];
+          _isLoading = false;
+        });
+        return;
+      }
+      
+      String currentDisplayName = _getCurrentDisplayName();
+
       final activeResponse = await Supabase.instance.client
           .from('plants')
           .select()
+          .eq('displayname', currentDisplayName)
           .eq('status', 'active')
           .order('slot_number', ascending: true);
 
       final historyResponse = await Supabase.instance.client
           .from('plants')
           .select()
+          .eq('displayname', currentDisplayName)
           .eq('status', 'history')
           .order('archived_at', ascending: false);
 
@@ -49,7 +77,7 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
           'slot_number': item['slot_number'] ?? 1,
           'name': item['name'],
           'date': DateTime.parse(item['planted_date']),
-          'avatar': item['avatar'],
+          'avatar': item['avatar'] ?? '🌱',
         });
       }
 
@@ -60,7 +88,7 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
           'slot_number': item['slot_number'] ?? 1,
           'name': item['name'],
           'date': DateTime.parse(item['planted_date']),
-          'avatar': item['avatar'],
+          'avatar': item['avatar'] ?? '🌱',
           'action_type': item['action_type'] ?? 'complete',
           'archived_at': item['archived_at'] != null ? DateTime.parse(item['archived_at']) : DateTime.now(),
         });
@@ -105,7 +133,13 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
           slotNumber: availableSlot, 
           onAdd: (name, date, avatar) async {
             try {
+              final user = Supabase.instance.client.auth.currentUser;
+              if (user == null) return;
+
+              String currentDisplayName = _getCurrentDisplayName();
+
               await Supabase.instance.client.from('plants').insert({
+                'displayname': currentDisplayName, 
                 'slot_number': availableSlot,
                 'name': name,
                 'planted_date': date.toIso8601String(),
@@ -130,7 +164,6 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      // 👑 关键：设置为 false，防止键盘弹起时挤压或移动整个 Scaffold 背景
       resizeToAvoidBottomInset: false,
       floatingActionButton: (_selectedSegment == 0 && _activePlants.length < 3)
           ? FloatingActionButton(
@@ -142,16 +175,8 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
           : null,
       body: Stack(
         children: [
-          // 👑 背景图固定在底层，不随键盘移动
-          Positioned.fill(
-            child: Image.asset(
-              'assets/app_background.png',
-              fit: BoxFit.cover,
-            ),
-          ),
-          Positioned.fill(
-            child: Container(color: Colors.white.withOpacity(0.78)),
-          ),
+          Positioned.fill(child: Image.asset('assets/app_background.png', fit: BoxFit.cover)),
+          Positioned.fill(child: Container(color: Colors.white.withOpacity(0.78))),
           _isLoading
               ? const Center(child: CircularProgressIndicator(color: primaryDarkGreen))
               : Column(
@@ -161,10 +186,7 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
                       width: double.infinity,
                       decoration: const BoxDecoration(
                         color: primaryDarkGreen, 
-                        borderRadius: BorderRadius.only(
-                          bottomLeft: Radius.circular(20),
-                          bottomRight: Radius.circular(20),
-                        ),
+                        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20)),
                       ),
                       child: SafeArea(
                         bottom: false,
@@ -189,9 +211,7 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(24),
                           border: Border.all(color: Colors.black12),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))
-                          ],
+                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))],
                         ),
                         child: Row(
                           children: [
@@ -204,14 +224,7 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
                                     color: _selectedSegment == 0 ? const Color(0xFF497E66) : Colors.transparent,
                                     borderRadius: BorderRadius.circular(20),
                                   ),
-                                  child: Text(
-                                    'Active Plants',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                      color: _selectedSegment == 0 ? Colors.white : Colors.black54,
-                                    ),
-                                  ),
+                                  child: Text('Active Plants', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: _selectedSegment == 0 ? Colors.white : Colors.black54)),
                                 ),
                               ),
                             ),
@@ -224,14 +237,7 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
                                     color: _selectedSegment == 1 ? const Color(0xFF497E66) : Colors.transparent,
                                     borderRadius: BorderRadius.circular(20),
                                   ),
-                                  child: Text(
-                                    'History',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                      color: _selectedSegment == 1 ? Colors.white : Colors.black54,
-                                    ),
-                                  ),
+                                  child: Text('History', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: _selectedSegment == 1 ? Colors.white : Colors.black54)),
                                 ),
                               ),
                             ),
@@ -262,11 +268,7 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.black12),
-          ),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.black12)),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -279,13 +281,7 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
                 ],
               ),
               const SizedBox(height: 8),
-              const Text(
-                '(Maximum 3 active plants can be added)',
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 10.5, color: Colors.grey, fontWeight: FontWeight.w600),
-              ),
+              const Text('(Maximum 3 active plants can be added)', textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10.5, color: Colors.grey, fontWeight: FontWeight.w600)),
             ],
           ),
         ),
@@ -302,17 +298,14 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
         final int daysOld = DateTime.now().difference(plant['date']).inDays;
         int slotNum = plant['slot_number'] ?? 1;
         String formattedTitle = 'Plant $slotNum: ${plant['name']}';
-        String avatarStr = plant['avatar'] ?? '';
+        String avatarStr = plant['avatar'] ?? '🌱';
+        
         bool isLocalFile = avatarStr.startsWith('/') || avatarStr.startsWith('file://');
+        bool fileExists = isLocalFile && File(avatarStr).existsSync();
 
         return Container(
           margin: const EdgeInsets.only(bottom: 14),
-          decoration: BoxDecoration(
-            color: softIvoryWhite, 
-            borderRadius: BorderRadius.circular(16), 
-            border: Border.all(color: Colors.black12),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6)],
-          ),
+          decoration: BoxDecoration(color: softIvoryWhite, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.black12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6)]),
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: () async {
@@ -330,29 +323,21 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
               
               if (result != null) {
                 String action = result['action'];
-                if (action == 'harvest') {
-                  action = 'complete';
-                }
+                if (action == 'harvest') action = 'complete';
 
                 if (action == 'delete' || action == 'complete') {
-                  await Supabase.instance.client
-                      .from('plants')
-                      .update({
-                        'status': 'history',
-                        'action_type': action, 
-                        'archived_at': DateTime.now().toIso8601String(),
-                      })
-                      .eq('id', plant['id']);
+                  await Supabase.instance.client.from('plants').update({
+                    'status': 'history',
+                    'action_type': action, 
+                    'archived_at': DateTime.now().toIso8601String(),
+                  }).eq('id', plant['id']);
                   _fetchPlantsFromSupabase();
                 } else if (action == 'update') {
-                  await Supabase.instance.client
-                      .from('plants')
-                      .update({
-                        'name': result['name'],
-                        'planted_date': result['date'].toIso8601String(),
-                        'avatar': result['avatar'],
-                      })
-                      .eq('id', plant['id']);
+                  await Supabase.instance.client.from('plants').update({
+                    'name': result['name'],
+                    'planted_date': result['date'].toIso8601String(),
+                    'avatar': result['avatar'],
+                  }).eq('id', plant['id']);
                   _fetchPlantsFromSupabase();
                 }
               }
@@ -368,12 +353,10 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
                       color: const Color(0xFFEAF2E8), 
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.black12),
-                      image: isLocalFile
-                          ? DecorationImage(image: FileImage(File(avatarStr)), fit: BoxFit.cover)
-                          : null,
+                      image: fileExists ? DecorationImage(image: FileImage(File(avatarStr)), fit: BoxFit.cover) : null,
                     ),
-                    child: !isLocalFile
-                        ? Center(child: Text(avatarStr.contains('🌻') ? '🌻' : '🌿', style: const TextStyle(fontSize: 22)))
+                    child: !fileExists
+                        ? const Center(child: Text('🌱', style: TextStyle(fontSize: 22)))
                         : null,
                   ),
                   const SizedBox(width: 16),

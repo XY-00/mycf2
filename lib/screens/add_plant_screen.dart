@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DateInputFormatter extends TextInputFormatter {
   @override
@@ -40,6 +42,8 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   DateTime _selectedDate = DateTime.now();
   File? _selectedImageFile;
   final ImagePicker _picker = ImagePicker();
+  
+  String? _dateErrorText;
 
   @override
   void initState() {
@@ -68,7 +72,37 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
       setState(() {
         _selectedDate = picked;
         _dateController.text = "${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}";
+        _dateErrorText = null;
       });
+    }
+  }
+
+  DateTime? _parseAndValidateDate(String text) {
+    try {
+      List<String> parts = text.split('/');
+      if (parts.length != 3) return null;
+      
+      int day = int.parse(parts[0]);
+      int month = int.parse(parts[1]);
+      int year = int.parse(parts[2]);
+
+      if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900) {
+        return null;
+      }
+
+      DateTime parsedDate = DateTime(year, month, day);
+      
+      if (parsedDate.year != year || parsedDate.month != month || parsedDate.day != day) {
+        return null;
+      }
+
+      if (parsedDate.isAfter(DateTime.now())) {
+        return null;
+      }
+
+      return parsedDate;
+    } catch (e) {
+      return null;
     }
   }
 
@@ -184,7 +218,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
                                           : null,
                                     ),
                                     child: _selectedImageFile == null
-                                        ? const Center(child: Icon(Icons.eco_rounded, size: 42, color: primaryDarkGreen))
+                                        ? const Center(child: Text('🌱', style: TextStyle(fontSize: 42)))
                                         : null,
                                   ),
                                 ),
@@ -227,13 +261,26 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
                             controller: _dateController,
                             keyboardType: TextInputType.number,
                             inputFormatters: [FilteringTextInputFormatter.digitsOnly, DateInputFormatter()],
+                            onChanged: (val) {
+                              if (_dateErrorText != null) {
+                                setState(() => _dateErrorText = null);
+                              }
+                            },
                             decoration: InputDecoration(
                               hintText: 'DD/MM/YYYY',
                               filled: true,
                               fillColor: Colors.white,
+                              errorText: _dateErrorText, // 👈 仅显示 Invalid date
+                              errorStyle: const TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold),
                               suffixIcon: IconButton(icon: const Icon(Icons.calendar_today_outlined, color: primaryDarkGreen), onPressed: _pickDate),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.black12)),
                               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.black12)),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12), 
+                                borderSide: BorderSide(color: _dateErrorText != null ? Colors.redAccent : primaryDarkGreen, width: 1.5),
+                              ),
+                              errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.redAccent, width: 1.5)),
+                              focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.redAccent, width: 1.5)),
                             ),
                           ),
                           const SizedBox(height: 40),
@@ -242,14 +289,40 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
                             height: 50,
                             child: ElevatedButton(
                               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFD96B27), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 2),
-                              onPressed: () {
-                                if (_nameController.text.trim().isNotEmpty) {
-                                  String avatarResult = _selectedImageFile != null ? _selectedImageFile!.path : 'Sunflower 🌻';
-                                  widget.onAdd(_nameController.text.trim(), _selectedDate, avatarResult);
-                                  Navigator.pop(context);
-                                } else {
+                              onPressed: () async {
+                                if (_nameController.text.trim().isEmpty) {
                                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter plant name')));
+                                  return;
                                 }
+
+                                DateTime? validatedDate = _parseAndValidateDate(_dateController.text.trim());
+                                if (validatedDate == null) {
+                                  setState(() {
+                                    _dateErrorText = 'Invalid date'; // 👈 修改为精简提示
+                                  });
+                                  return;
+                                }
+
+                                String avatarResult = '🌱';
+                                if (_selectedImageFile != null) {
+                                  final appDir = await getApplicationDocumentsDirectory();
+                                  String fileName = 'plant_${DateTime.now().millisecondsSinceEpoch}.png';
+                                  final permanentImage = await _selectedImageFile!.copy('${appDir.path}/$fileName');
+                                  avatarResult = permanentImage.path;
+                                }
+
+                                final user = Supabase.instance.client.auth.currentUser;
+                                if (user == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please login first')));
+                                  return;
+                                }
+
+                                widget.onAdd(
+                                  _nameController.text.trim(), 
+                                  validatedDate, 
+                                  avatarResult
+                                );
+                                Navigator.pop(context);
                               },
                               child: const Text('ADD PLANT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 0.5)),
                             ),

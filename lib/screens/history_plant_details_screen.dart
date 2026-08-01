@@ -149,7 +149,9 @@ class _HistoryPlantDetailsScreenState extends State<HistoryPlantDetailsScreen> {
   Widget build(BuildContext context) {
     const Color primaryDarkGreen = Color(0xFF2C4A3E);
     const Color unifiedCardBg = Color(0xFFF0F5F1); 
+    
     bool isLocalFile = _currentAvatar.startsWith('/') || _currentAvatar.startsWith('file://');
+    bool fileExists = isLocalFile && File(_currentAvatar).existsSync();
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -227,7 +229,6 @@ class _HistoryPlantDetailsScreenState extends State<HistoryPlantDetailsScreen> {
                             children: [
                               Column(
                                 children: [
-                                  // 👑 历史详情页中的头像渲染（完美支持本地上传图片与默认表情同步）
                                   Container(
                                     width: 60,
                                     height: 60,
@@ -235,12 +236,17 @@ class _HistoryPlantDetailsScreenState extends State<HistoryPlantDetailsScreen> {
                                       color: Colors.white,
                                       shape: BoxShape.circle,
                                       border: Border.all(color: Colors.black12),
-                                      image: isLocalFile
+                                      image: fileExists
                                           ? DecorationImage(image: FileImage(File(_currentAvatar)), fit: BoxFit.cover)
                                           : null,
                                     ),
-                                    child: !isLocalFile
-                                        ? Center(child: Text(_currentAvatar.contains('🌻') ? '🌻' : '🌿', style: const TextStyle(fontSize: 26)))
+                                    child: !fileExists
+                                        ? Center(
+                                            child: Text(
+                                              isLocalFile ? '🌱' : _currentAvatar, // 如果是表情符号（如 🌻 或 🌱）直接正确渲染出来
+                                              style: const TextStyle(fontSize: 26),
+                                            ),
+                                          )
                                         : null,
                                   ),
                                   const SizedBox(height: 6),
