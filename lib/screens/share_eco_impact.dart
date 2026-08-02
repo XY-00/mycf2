@@ -316,6 +316,7 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
                               ),
                               child: Row(
                                 children: [
+                                  // 👑 换成和 Homepage 一致的普通标准人像头像（CircleAvatar + person 图标）
                                   Container(
                                     width: 26,
                                     height: 26,
@@ -324,7 +325,7 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
                                       border: Border.all(color: const Color(0xFF2C4A3E), width: 1.5),
                                       color: const Color(0xFF2C4A3E),
                                     ),
-                                    child: const Icon(Icons.face_retouching_natural, color: Colors.white, size: 15),
+                                    child: const Icon(Icons.person, color: Colors.white, size: 15),
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
@@ -364,7 +365,6 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
             const Text('INSTANT SHARE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black54)),
             const SizedBox(height: 10),
 
-            // 👑 只保留一个精致的 More 按钮
             Center(
               child: _buildStyledShareIcon(Icons.more_horiz, 'More', Colors.blue.shade700, () => _handleShare(context)),
             ),
