@@ -95,7 +95,22 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
               context: context,
               builder: (ctx) => AlertDialog(
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                title: const Text('Change Photo', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
+                title: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Change Photo', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+                      onPressed: () {
+                        setPopupState(() {
+                          tempAvatar = '';
+                          tempImageFile = null;
+                        });
+                        Navigator.pop(ctx);
+                      },
+                    ),
+                  ],
+                ),
                 content: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [

@@ -9,7 +9,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  double _carbonSaved = 146.0;
+  double _carbonSaved = 0.0; // 初始值设为 0，由数据库动态拉取求和
   double _moisture = 62.9;
   int _stabilityScore = 90;
   String _policyStatus = 'GREEN';
@@ -23,7 +23,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _fetchUserFullName();
-    _initSupabaseRealtime();
+    _fetchTotalCarbonFromDatabase(); // 👑 从数据库动态计算 Eco Impact 的总减排量
+    _initSupabaseRealtime();          // 👑 实时监听硬件传感器的变动
   }
 
   void _fetchUserFullName() {
@@ -35,6 +36,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  // 👑 从 Supabase 的 eco_impact_history 表获取所有减排记录并求和
+  Future<void> _fetchTotalCarbonFromDatabase() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final response = await supabase
+          .from('eco_impact_history')
+          .select('saved_amount');
+
+      if (response != null && (response as List).isNotEmpty) {
+        double total = 0.0;
+        for (var item in response) {
+          total += double.tryParse(item['saved_amount'].toString()) ?? 0.0;
+        }
+        setState(() {
+          _carbonSaved = total; // 完美同步 Eco Impact 的总和
+        });
+      }
+    } catch (e) {
+      debugPrint('Database carbon fetch error: $e');
+    }
+  }
+
+  // 👑 实时监听树莓派硬件发上来的温湿度、土壤湿度、水位状态
   void _initSupabaseRealtime() {
     _statusSubscription = Supabase.instance.client
         .channel('public:live_status')
@@ -46,13 +70,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             final data = payload.newRecord;
             if (data.isNotEmpty) {
               setState(() {
-                _moisture = (data['soil_moisture'] ?? 62.9).toDouble();
-                _carbonSaved = (data['carbon_saved'] ?? 146.0).toDouble();
-                _stabilityScore = (data['stability_score'] ?? 90).toInt();
+                _temperature = (data['temperature'] ?? 26.5).toDouble(); // 对应 DHT11 温度
+                _humidity = (data['humidity'] ?? 55.0).toDouble();       // 对应 DHT11 湿度
+                _moisture = (data['soil_moisture'] ?? 62.9).toDouble();  // 对应 Plant 土壤湿度
+                _stabilityScore = (data['stability_score'] ?? 90).toInt(); // 对应碳稳定性评分
                 _policyStatus = data['traffic_light_state'] ?? 'GREEN';
-                _temperature = (data['temperature'] ?? 26.5).toDouble();
-                _humidity = (data['humidity'] ?? 55.0).toDouble();
-                _isWaterLevelNormal = data['water_level_normal'] ?? true;
+                _isWaterLevelNormal = data['water_level_normal'] ?? true;  // 对应水箱水位浮子传感器
               });
             }
           },
@@ -121,6 +144,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 14),
+                  // DHT11 温湿度监控
                   Row(
                     children: [
                       Expanded(child: _miniCard('Temperature', '${_temperature.toStringAsFixed(1)} °C', Icons.thermostat, Colors.orange)),
@@ -130,7 +154,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 14),
                   
-                  // Total Carbon Footprint Saved Card (👑 已替换为专属本地图标)
+                  // 👑 自动从数据库求和的总碳减排量 (Total Carbon Footprint Saved)
                   _buildCard(softIvoryWhite, Row(
                     children: [
                       Image.asset('assets/my_ic_carbonfootprint.png', width: 36, height: 36, color: primaryDarkGreen),
@@ -140,13 +164,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         children: [
                           const Text('Total Carbon Footprint Saved', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black54)),
                           const SizedBox(height: 4),
-                          Text('$_carbonSaved mg CO₂ e', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
+                          Text('${_carbonSaved.toStringAsFixed(1)} mg CO₂ e', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
                         ],
                       )
                     ],
                   )),
                   
-                  // Plant Hydration Card
+                  // Plant Hydration (连接 Plant 土壤湿度传感器)
                   _buildCard(const Color(0xFFEAF2E8), Column(
                     children: [
                       const SizedBox(height: 10),
@@ -163,7 +187,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   )),
                   
-                  // Carbon Stability Card
+                  // Carbon Stability Score (关联土壤湿度)
                   _buildCard(const Color(0xFFFDECEB), Column(
                     children: [
                       const SizedBox(height: 10),
@@ -180,7 +204,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   )),
                   
-                  // Water Tank Storage Card
+                  // Water Tank Storage (连接 Float Water Level Sensor 水位浮子传感器)
                   _buildCard(
                     _isWaterLevelNormal ? softIvoryWhite : const Color(0xFFFCE8E6),
                     Column(

@@ -41,5 +41,19 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+
+        <package android:name="com.whatsapp" />
+
+        <!-- 👑 允许精准检测并唤起 Instagram -->
+        <package android:name="com.instagram.android" />
+
+        <!-- 👑 允许精准检测并唤起 Facebook -->
+        <package android:name="com.facebook.katana" />
+
+        <!-- 👑 允许拉起通用的分享 Intent 页面 -->
+        <intent>
+            <action android:name="android.intent.action.SEND" />
+            <data android:mimeType="image/png" />
+        </intent>
     </queries>
 </manifest>

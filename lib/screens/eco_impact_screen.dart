@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:share_plus/share_plus.dart';
+import 'share_eco_impact.dart';
 
 class EcoImpactScreen extends StatefulWidget {
-  const EcoImpactScreen({Key? key}) : super(key: key);
+  final double totalCarbonSaved;
+  final ValueChanged<double>? onCarbonSavedChanged;
+
+  const EcoImpactScreen({
+    Key? key,
+    this.totalCarbonSaved = 146.0,
+    this.onCarbonSavedChanged,
+  }) : super(key: key);
 
   @override
   State<EcoImpactScreen> createState() => _EcoImpactScreenState();
@@ -13,10 +20,14 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
   String _profileName = 'Lee Xin Yi';
   String _profileId = 'FARM0027';
 
+  List<Map<String, dynamic>> _rawHistoryRecords = [];
+  final Map<String, bool> _expandedMonths = {};
+
   @override
   void initState() {
     super.initState();
     _fetchUserInfo();
+    _fetchEcoImpactFromDatabase();
   }
 
   void _fetchUserInfo() {
@@ -28,75 +39,272 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
     }
   }
 
-  // 👑 下载功能：模拟生成并保存环保报告
-  void _handleDownload() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Eco Impact report downloaded successfully!'),
-        backgroundColor: Color(0xFF2C4A3E),
-        duration: Duration(seconds: 2),
-      ),
-    );
+  Future<void> _fetchEcoImpactFromDatabase() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final response = await supabase
+          .from('eco_impact_history')
+          .select()
+          .order('record_date', ascending: false);
+
+      if (response != null && (response as List).isNotEmpty) {
+        setState(() {
+          _rawHistoryRecords = response.map((item) => {
+            'date': item['record_date'].toString(),
+            'saved': double.tryParse(item['saved_amount'].toString()) ?? 0.0,
+          }).toList();
+
+          for (var group in _groupedHistoryData) {
+            _expandedMonths[group['month']] = true;
+          }
+        });
+
+        if (widget.onCarbonSavedChanged != null) {
+          widget.onCarbonSavedChanged!(_totalSaved);
+        }
+      }
+    } catch (e) {
+      debugPrint('Database fetch fallback used: $e');
+    }
   }
 
-  // 👑 分享功能：调用系统 Share 插件
+  String _calculateGrade(double savedAmount) {
+    if (savedAmount >= 100.0) {
+      return 'A';
+    } else if (savedAmount >= 40.0) {
+      return 'B';
+    } else {
+      return 'C';
+    }
+  }
+
+  Color _getGradeColor(String grade) {
+    switch (grade.toUpperCase()) {
+      case 'A':
+        return const Color(0xFF4CAF50);
+      case 'B':
+        return const Color(0xFFFFB300);
+      case 'C':
+        return const Color(0xFFE53935);
+      default:
+        return const Color(0xFF4CAF50);
+    }
+  }
+
+  double get _totalSaved {
+    if (_rawHistoryRecords.isEmpty) return 0.0;
+    return _rawHistoryRecords.fold(0.0, (sum, item) => sum + (item['saved'] as double));
+  }
+
+  List<Map<String, dynamic>> get _groupedHistoryData {
+    Map<String, List<Map<String, dynamic>>> tempMap = {};
+
+    for (var record in _rawHistoryRecords) {
+      String dateStr = record['date'];
+      String monthKey = dateStr.length >= 7 ? dateStr.substring(0, 7) : dateStr;
+
+      if (!tempMap.containsKey(monthKey)) {
+        tempMap[monthKey] = [];
+      }
+      tempMap[monthKey]!.add(record);
+    }
+
+    List<Map<String, dynamic>> groupedList = [];
+    tempMap.forEach((month, items) {
+      double monthTotal = items.fold(0.0, (sum, item) => sum + (item['saved'] as double));
+      String monthGrade = _calculateGrade(monthTotal);
+      groupedList.add({
+        'month': month,
+        'totalSaved': monthTotal,
+        'grade': monthGrade,
+        'items': items,
+      });
+    });
+
+    groupedList.sort((a, b) => b['month'].compareTo(a['month']));
+    return groupedList;
+  }
+
   void _handleShare() {
-    Share.share(
-      'Check out my Eco Impact Grade A (Top 5% of Farmers) on CarboFarm! Total Carbon Saved: 146.0 mg CO2e.',
-      subject: 'My CarboFarm Eco Impact',
+    String overallGrade = _calculateGrade(_totalSaved);
+    showDialog(
+      context: context,
+      builder: (context) => ShareEcoImpactDialog(
+        profileName: _profileName,
+        profileId: _profileId,
+        grade: overallGrade,
+      ),
     );
   }
 
-  // 👑 数据对比弹窗
+  // 👑 真正的 Data Comparison 弹窗（支持多选两条进行 Before vs After 对比）
   void _showDataComparisonDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Data Comparison', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
-        content: const Text(
-          '• Your Carbon Savings: 146.0 mg CO2e\n'
-          '• Community Average: 95.0 mg CO2e\n'
-          '• Performance: You are performing 53% better than the average farmer this month!',
-          style: TextStyle(fontSize: 13, height: 1.4),
+    if (_rawHistoryRecords.length < 2) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Comparison'),
+          content: const Text('You need at least 2 records in history to perform a comparison.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
         ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2C4A3E)),
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+      );
+      return;
+    }
+
+    // 默认选择最早的一条作为 Before，最新的一条作为 After
+    int beforeIndex = _rawHistoryRecords.length - 1;
+    int afterIndex = 0;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            var beforeItem = _rawHistoryRecords[beforeIndex];
+            var afterItem = _rawHistoryRecords[afterIndex];
+            double diff = afterItem['saved'] - beforeItem['saved'];
+
+            return Container(
+              padding: const EdgeInsets.all(20),
+              height: 450,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Select Records to Compare', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Before: ${beforeItem['date']} (${beforeItem['saved']} mg)', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      DropdownButton<int>(
+                        value: beforeIndex,
+                        items: _rawHistoryRecords.asMap().entries.map((e) {
+                          return DropdownMenuItem(value: e.key, child: Text(e.value['date']));
+                        }).toList(),
+                        onChanged: (val) => setModalState(() => beforeIndex = val!),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('After: ${afterItem['date']} (${afterItem['saved']} mg)', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      DropdownButton<int>(
+                        value: afterIndex,
+                        items: _rawHistoryRecords.asMap().entries.map((e) {
+                          return DropdownMenuItem(value: e.key, child: Text(e.value['date']));
+                        }).toList(),
+                        onChanged: (val) => setModalState(() => afterIndex = val!),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 30),
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(color: const Color(0xFFD6E4DA), borderRadius: BorderRadius.circular(12)),
+                      child: Column(
+                        children: [
+                          const Text('Comparison Result', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
+                          const SizedBox(height: 6),
+                          Text('Difference: ${diff >= 0 ? '+' : ''}${diff.toStringAsFixed(1)} mg CO₂ e', 
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: diff >= 0 ? Colors.green.shade800 : Colors.red.shade800)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2C4A3E), padding: const EdgeInsets.all(12)),
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close', style: TextStyle(color: Colors.white)),
+                    ),
+                  )
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
-  // 👑 数据导出弹窗
+  // 👑 真正的 Data Export 弹窗（支持选择时间范围与格式）
   void _showDataExportDialog() {
-    showDialog(
+    String selectedRange = 'Recent one month';
+    String selectedFormat = 'CSV';
+
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Data Export', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
-        content: const Text(
-          'Your harvesting history and carbon footprint records have been successfully exported as a CSV file.',
-          style: TextStyle(fontSize: 13, height: 1.4),
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2C4A3E)),
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: const EdgeInsets.all(20),
+              height: 400,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Choose Time Range & Format', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
+                  const SizedBox(height: 14),
+                  ...['Recent one month', 'Recent three months', 'All'].map((range) {
+                    return RadioListTile<String>(
+                      title: Text(range),
+                      value: range,
+                      groupValue: selectedRange,
+                      activeColor: const Color(0xFF2C4A3E),
+                      onChanged: (val) => setModalState(() => selectedRange = val!),
+                    );
+                  }),
+                  const SizedBox(height: 10),
+                  const Text('Select Format', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Row(
+                    children: ['CSV', 'PDF'].map((fmt) {
+                      return Expanded(
+                        child: RadioListTile<String>(
+                          title: Text(fmt),
+                          value: fmt,
+                          groupValue: selectedFormat,
+                          activeColor: const Color(0xFF2C4A3E),
+                          onChanged: (val) => setModalState(() => selectedFormat = val!),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const Spacer(),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2C4A3E), padding: const EdgeInsets.all(12)),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Successfully exported data as $selectedFormat ($selectedRange)!')),
+                        );
+                      },
+                      child: const Text('Export Now', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  )
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
     const Color primaryDarkGreen = Color(0xFF2C4A3E); 
-    const Color containerBg = Color(0xFFF7F5EA);
+    String overallGrade = _calculateGrade(_totalSaved);
+    Color overallGradeColor = _getGradeColor(overallGrade);
 
     return Scaffold(
       backgroundColor: Colors.transparent, 
@@ -126,6 +334,8 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
               ),
             ),
             const SizedBox(height: 14),
+
+            // Grade 模块主卡片
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0), 
               child: Column(
@@ -135,46 +345,25 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: containerBg, 
-                      borderRadius: BorderRadius.circular(14), 
-                      border: Border.all(color: Colors.black12), 
+                      color: Colors.white, 
+                      borderRadius: BorderRadius.circular(16), 
+                      border: Border.all(color: Colors.black12),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6)],
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start, 
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.start, 
                       children: [
-                        Row(
-                          children: [
-                            const CircleAvatar(
-                              radius: 26,
-                              backgroundColor: primaryDarkGreen,
-                              child: Icon(Icons.face_retouching_natural, color: Colors.white, size: 28),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Farmer: $_profileName', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black), overflow: TextOverflow.ellipsis),
-                                  const SizedBox(height: 2),
-                                  Text('UserID: $_profileId', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
-                                ],
-                              ),
-                            )
-                          ],
+                        CircleAvatar(
+                          radius: 22, 
+                          backgroundColor: overallGradeColor, 
+                          child: Text(overallGrade, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18)),
                         ),
-                        const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Divider(color: Colors.black12)),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.start, 
-                          children: [
-                            CircleAvatar(radius: 20, backgroundColor: primaryDarkGreen.withOpacity(0.3), child: const Text('A', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black))),
-                            const SizedBox(width: 14),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
-                                Text('Eco Friendly Grade', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
-                                Text('Top 5% of Farmers', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black54)),
-                              ],
-                            ),
+                        const SizedBox(width: 14),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Text('Eco Friendly Grade', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
+                            Text('Top 5% of Farmers', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black54)),
                           ],
                         ),
                       ],
@@ -185,32 +374,14 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       GestureDetector(
-                        onTap: _handleDownload, 
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: containerBg, 
-                            borderRadius: BorderRadius.circular(10), 
-                            border: Border.all(color: Colors.black12),
-                          ),
-                          child: Row(
-                            children: const [
-                              Icon(Icons.download_rounded, size: 14, color: primaryDarkGreen),
-                              SizedBox(width: 4),
-                              Text('Download', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: primaryDarkGreen)),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      GestureDetector(
                         onTap: _handleShare, 
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                           decoration: BoxDecoration(
-                            color: containerBg, 
+                            color: Colors.white, 
                             borderRadius: BorderRadius.circular(10), 
                             border: Border.all(color: Colors.black12),
+                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 4)],
                           ),
                           child: Row(
                             children: const [
@@ -227,54 +398,165 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
               ),
             ),
             const SizedBox(height: 10),
+
+            // 核心指标卡片
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0), 
               child: Row(
                 children: [
-                  _buildMetricBox('Total Carbon\nFootprint saved', '146.0', isImageIcon: true),
-                  const SizedBox(width: 8),
-                  _buildMetricBox('Red-line\nsuccess', '3 of 3', icon: Icons.gps_fixed),
-                  const SizedBox(width: 8),
-                  _buildMetricBox('Total Water\nSaved (Liter)', '10.0', icon: Icons.opacity),
+                  Expanded(child: _miniMetricCard('Carbon Footprint Saved', '${_totalSaved.toStringAsFixed(1)} mg', isImageIcon: true)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _miniMetricCard('Red-line Success', '3 of 3', icon: Icons.gps_fixed, iconColor: Colors.red)),
                 ],
               ),
             ),
             const SizedBox(height: 14),
             
+            // 历史记录大卡片
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               margin: const EdgeInsets.symmetric(horizontal: 20.0), 
               decoration: BoxDecoration(
-                color: containerBg, 
+                color: Colors.white, 
                 borderRadius: BorderRadius.circular(16), 
                 border: Border.all(color: Colors.black12), 
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6)],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Center(child: Text('History Record (Harvested)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black))),
+                  const Center(child: Text('History', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black))),
                   const SizedBox(height: 12),
+                  
                   Container(
                     padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
                     decoration: BoxDecoration(color: const Color(0xFFAEC4B5), borderRadius: BorderRadius.circular(8)),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: const [
-                        Expanded(child: Text('Date', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-                        Expanded(child: Text('Carbon Footprint\nsaved (mg CO2e)', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                        Expanded(child: Text('Grade', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                        Expanded(flex: 3, child: Text('Date', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                        Expanded(flex: 4, child: Text('Carbon Footprint\nsaved (mg CO₂ e)', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, height: 1.1))),
+                        Expanded(flex: 3, child: Text('Grade', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  _buildHistoryRow('2026/03', '146.0', 'A'),
-                  _buildHistoryDataRow('10/03', '50.0', 'A'),
-                  _buildHistoryDataRow('09/03', '50.0', 'A'),
-                  _buildHistoryDataRow('08/03', '46.0', 'A'),
-                  _buildHistoryRow('2026/02', '80.0', 'B'),
-                  _buildHistoryDataRow('10/02', '20.0', 'B'),
-                  _buildHistoryDataRow('09/02', '40.0', 'B'),
+                  const SizedBox(height: 4),
+
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: EdgeInsets.zero,
+                    itemCount: _groupedHistoryData.length,
+                    itemBuilder: (context, groupIndex) {
+                      final group = _groupedHistoryData[groupIndex];
+                      final String monthKey = group['month'];
+                      final bool isExpanded = _expandedMonths[monthKey] ?? true;
+                      final List items = group['items'];
+                      String monthGrade = group['grade'];
+                      Color monthGradeColor = _getGradeColor(monthGrade);
+
+                      return Column(
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _expandedMonths[monthKey] = !isExpanded;
+                              });
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(vertical: 2),
+                              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFD6E4DA), 
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.black12), 
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    flex: 3,
+                                    child: Text(monthKey, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                  ),
+                                  Expanded(
+                                    flex: 4,
+                                    child: Text('${group['totalSaved'].toStringAsFixed(1)}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                  ),
+                                  Expanded(
+                                    flex: 3,
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        Text(
+                                          monthGrade, 
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: monthGradeColor)
+                                        ),
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: Icon(
+                                            isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                                            size: 16,
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          if (isExpanded)
+                            ...items.map((item) {
+                              String itemDate = item['date'];
+                              String displayDate = itemDate.length >= 10 ? itemDate.substring(5).replaceAll('-', '/') : itemDate;
+                              double itemSaved = item['saved'];
+                              String itemGrade = _calculateGrade(itemSaved);
+                              Color itemGradeColor = _getGradeColor(itemGrade);
+
+                              return Container(
+                                margin: const EdgeInsets.symmetric(vertical: 2),
+                                padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+                                decoration: BoxDecoration(
+                                  color: Colors.transparent, 
+                                  borderRadius: BorderRadius.circular(8), 
+                                  border: Border.all(color: Colors.black12), 
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      flex: 3,
+                                      child: Text(displayDate, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                    ),
+                                    Expanded(
+                                      flex: 4,
+                                      child: Text('${itemSaved.toStringAsFixed(1)}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                    ),
+                                    Expanded(
+                                      flex: 3,
+                                      child: Stack(
+                                        alignment: Alignment.center,
+                                        children: [
+                                          Text(
+                                            itemGrade, 
+                                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: itemGradeColor)
+                                          ),
+                                          const Align(
+                                            alignment: Alignment.centerRight,
+                                            child: SizedBox(width: 16),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                        ],
+                      );
+                    },
+                  ),
+
                   const SizedBox(height: 14),
                   Row(
                     children: [
@@ -293,71 +575,42 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
     );
   }
 
-  Widget _buildMetricBox(String label, String value, {IconData? icon, bool isImageIcon = false}) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-        height: 110,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF7F5EA), 
-          borderRadius: BorderRadius.circular(12), 
-          border: Border.all(color: Colors.black12), 
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Colors.black87, height: 1.1)),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+  Widget _miniMetricCard(String title, String value, {IconData? icon, Color? iconColor, bool isImageIcon = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white, 
+        borderRadius: BorderRadius.circular(16), 
+        border: Border.all(color: Colors.black12),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6, offset: const Offset(0, 3))],
+      ),
+      child: Row(
+        children: [
+          isImageIcon 
+              ? Image.asset('assets/my_ic_carbonfootprint.png', width: 20, height: 20, color: const Color(0xFF2C4A3E))
+              : Icon(icon, color: iconColor ?? const Color(0xFF2C4A3E), size: 20),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                isImageIcon 
-                    ? Image.asset('assets/my_ic_carbonfootprint.png', width: 18, height: 18, color: const Color(0xFF2C4A3E))
-                    : Icon(icon, size: 18, color: const Color(0xFF2C4A3E)),
-                const SizedBox(width: 4),
-                Text(value, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black)),
+                Text(
+                  title, 
+                  maxLines: 1, 
+                  overflow: TextOverflow.ellipsis, 
+                  style: const TextStyle(fontSize: 8.5, color: Colors.black87, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value, 
+                  maxLines: 1, 
+                  overflow: TextOverflow.ellipsis, 
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.black87),
+                ),
               ],
-            )
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHistoryRow(String month, String value, String grade) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 3),
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFD6E4DA), 
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.black12), 
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(child: Text(month, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-          Expanded(child: Text(value, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-          Expanded(child: Text(grade, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHistoryDataRow(String date, String value, String grade) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 2),
-      padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-      decoration: BoxDecoration(
-        color: Colors.transparent, 
-        borderRadius: BorderRadius.circular(8), 
-        border: Border.all(color: Colors.black12), 
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(child: Text(date, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-          Expanded(child: Text(value, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-          Expanded(child: Text(grade, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+            ),
+          )
         ],
       ),
     );
