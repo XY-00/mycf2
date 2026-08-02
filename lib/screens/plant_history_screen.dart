@@ -72,7 +72,6 @@ class _PlantHistoryScreenState extends State<PlantHistoryScreen> {
       );
     }
 
-    // 1. 按归档时间 (archived_at) 从新到旧排序
     List<Map<String, dynamic>> sortedPlants = List.from(widget.historyPlants);
     sortedPlants.sort((a, b) {
       DateTime timeA = a['archived_at'] ?? DateTime.now();
@@ -80,8 +79,6 @@ class _PlantHistoryScreenState extends State<PlantHistoryScreen> {
       return timeB.compareTo(timeA); 
     });
 
-    // 2. 👑 核心修改：按“具体的归档年月日 (Year -> Month -> Day)”进行多级分组
-    // 结构: Map<Year, Map<Month, Map<Day, List<Plant>>>>
     Map<int, Map<int, Map<int, List<Map<String, dynamic>>>>> groupedHistory = {};
 
     for (var plant in sortedPlants) {
@@ -107,7 +104,6 @@ class _PlantHistoryScreenState extends State<PlantHistoryScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 年份标题
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8.0),
               child: Text(
@@ -123,7 +119,6 @@ class _PlantHistoryScreenState extends State<PlantHistoryScreen> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 遍历该月份下的每一个具体归档日期（例如：3 July、15 July）
                   ...sortedDays.map((day) {
                     List<Map<String, dynamic>> plantsOnDay = daysMap[day]!;
                     String dateHeaderString = '$day $monthName $year';
@@ -131,7 +126,6 @@ class _PlantHistoryScreenState extends State<PlantHistoryScreen> {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // 日期分界线标题
                         Padding(
                           padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
                           child: Row(
@@ -150,13 +144,14 @@ class _PlantHistoryScreenState extends State<PlantHistoryScreen> {
                             ],
                           ),
                         ),
-                        // 该日期下归档的植物列表
                         ...plantsOnDay.map((plant) {
                           String actionType = plant['action_type'];
                           String statusText = actionType == 'complete' ? 'Complete' : 'Delete';
                           Color statusColor = actionType == 'complete' ? Colors.green.shade700 : Colors.redAccent;
                           
                           String avatarStr = plant['avatar'] ?? '🌱';
+                          
+                          // 👑 核心修复：精准判断是否为本地图片文件路径（跟主页面和详情页完全一致）
                           bool isLocalFile = avatarStr.startsWith('/') || avatarStr.startsWith('file://');
                           bool fileExists = isLocalFile && File(avatarStr).existsSync();
 
@@ -195,13 +190,19 @@ class _PlantHistoryScreenState extends State<PlantHistoryScreen> {
                                         color: const Color(0xFFEAF2E8), 
                                         shape: BoxShape.circle,
                                         border: Border.all(color: Colors.black12),
+                                        // 👑 如果是本地图片文件，直接在这里渲染图片圆头像
+                                        image: fileExists
+                                            ? DecorationImage(image: FileImage(File(avatarStr)), fit: BoxFit.cover)
+                                            : null,
                                       ),
-                                      child: Center(
-                                        child: Text(
-                                          isLocalFile ? '🌱' : avatarStr,
-                                          style: const TextStyle(fontSize: 22),
-                                        ),
-                                      ),
+                                      child: !fileExists
+                                          ? Center(
+                                              child: Text(
+                                                isLocalFile ? '🌱' : avatarStr, // 如果是表情符号（如 🌻 或 🌱）正确渲染
+                                                style: const TextStyle(fontSize: 22),
+                                              ),
+                                            )
+                                          : null,
                                     ),
                                     const SizedBox(width: 16),
                                     Expanded(
