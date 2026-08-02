@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'setting_screen.dart'; // 引入 UserProfileCache
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -9,34 +11,28 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  double _carbonSaved = 0.0; // 初始值设为 0，由数据库动态拉取求和
+  double _carbonSaved = 0.0;
   double _moisture = 62.9;
   int _stabilityScore = 90;
   String _policyStatus = 'GREEN';
   double _temperature = 26.5;
   double _humidity = 55.0;
-  String _userFullName = 'LEE XIN YI';
   RealtimeChannel? _statusSubscription;
   bool _isWaterLevelNormal = true;
 
   @override
   void initState() {
     super.initState();
-    _fetchUserFullName();
-    _fetchTotalCarbonFromDatabase(); // 👑 从数据库动态计算 Eco Impact 的总减排量
-    _initSupabaseRealtime();          // 👑 实时监听硬件传感器的变动
+    _initData();
+    _fetchTotalCarbonFromDatabase();
+    _initSupabaseRealtime();
   }
 
-  void _fetchUserFullName() {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user != null) {
-      setState(() {
-        _userFullName = user.userMetadata?['name'] ?? user.email?.split('@').first ?? 'Lee Xin Yi';
-      });
-    }
+  Future<void> _initData() async {
+    await UserProfileCache.load();
+    if (mounted) setState(() {});
   }
 
-  // 👑 从 Supabase 的 eco_impact_history 表获取所有减排记录并求和
   Future<void> _fetchTotalCarbonFromDatabase() async {
     try {
       final supabase = Supabase.instance.client;
@@ -50,7 +46,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           total += double.tryParse(item['saved_amount'].toString()) ?? 0.0;
         }
         setState(() {
-          _carbonSaved = total; // 完美同步 Eco Impact 的总和
+          _carbonSaved = total;
         });
       }
     } catch (e) {
@@ -58,7 +54,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // 👑 实时监听树莓派硬件发上来的温湿度、土壤湿度、水位状态
   void _initSupabaseRealtime() {
     _statusSubscription = Supabase.instance.client
         .channel('public:live_status')
@@ -70,12 +65,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             final data = payload.newRecord;
             if (data.isNotEmpty) {
               setState(() {
-                _temperature = (data['temperature'] ?? 26.5).toDouble(); // 对应 DHT11 温度
-                _humidity = (data['humidity'] ?? 55.0).toDouble();       // 对应 DHT11 湿度
-                _moisture = (data['soil_moisture'] ?? 62.9).toDouble();  // 对应 Plant 土壤湿度
-                _stabilityScore = (data['stability_score'] ?? 90).toInt(); // 对应碳稳定性评分
+                _temperature = (data['temperature'] ?? 26.5).toDouble();
+                _humidity = (data['humidity'] ?? 55.0).toDouble();
+                _moisture = (data['soil_moisture'] ?? 62.9).toDouble();
+                _stabilityScore = (data['stability_score'] ?? 90).toInt();
                 _policyStatus = data['traffic_light_state'] ?? 'GREEN';
-                _isWaterLevelNormal = data['water_level_normal'] ?? true;  // 对应水箱水位浮子传感器
+                _isWaterLevelNormal = data['water_level_normal'] ?? true;
               });
             }
           },
@@ -95,6 +90,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     const Color primaryDarkGreen = Color(0xFF2C4A3E); 
     const Color softIvoryWhite = Color(0xFFF9FBFA);
+
+    bool isAvatarLocal = UserProfileCache.avatarPath.isNotEmpty && (UserProfileCache.avatarPath.startsWith('/') || UserProfileCache.avatarPath.startsWith('file://'));
+    bool avatarExists = isAvatarLocal && File(UserProfileCache.avatarPath).existsSync();
 
     return Scaffold(
       backgroundColor: Colors.transparent, 
@@ -117,10 +115,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   padding: const EdgeInsets.only(left: 20.0, right: 20.0, top: 14.0, bottom: 16.0),
                   child: Row(
                     children: [
-                      CircleAvatar(
-                        radius: 22,
-                        backgroundColor: Colors.white.withOpacity(0.2),
-                        child: const Icon(Icons.person, color: Colors.white, size: 22),
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.2),
+                          image: avatarExists ? DecorationImage(image: FileImage(File(UserProfileCache.avatarPath)), fit: BoxFit.cover) : null,
+                        ),
+                        child: !avatarExists ? const Icon(Icons.person, color: Colors.white, size: 22) : null,
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -128,7 +131,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text('Hi, $_userFullName!', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3), overflow: TextOverflow.ellipsis),
+                            Text('Hi, ${UserProfileCache.profileName}!', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3), overflow: TextOverflow.ellipsis),
                             const SizedBox(height: 1),
                             Text('Welcome back to monitoring.', style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.7))),
                           ],
@@ -144,7 +147,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 14),
-                  // DHT11 温湿度监控
                   Row(
                     children: [
                       Expanded(child: _miniCard('Temperature', '${_temperature.toStringAsFixed(1)} °C', Icons.thermostat, Colors.orange)),
@@ -153,8 +155,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
                   const SizedBox(height: 14),
-                  
-                  // 👑 自动从数据库求和的总碳减排量 (Total Carbon Footprint Saved)
                   _buildCard(softIvoryWhite, Row(
                     children: [
                       Image.asset('assets/my_ic_carbonfootprint.png', width: 36, height: 36, color: primaryDarkGreen),
@@ -169,8 +169,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       )
                     ],
                   )),
-                  
-                  // Plant Hydration (连接 Plant 土壤湿度传感器)
                   _buildCard(const Color(0xFFEAF2E8), Column(
                     children: [
                       const SizedBox(height: 10),
@@ -186,8 +184,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(height: 6),
                     ],
                   )),
-                  
-                  // Carbon Stability Score (关联土壤湿度)
                   _buildCard(const Color(0xFFFDECEB), Column(
                     children: [
                       const SizedBox(height: 10),
@@ -203,8 +199,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(height: 6),
                     ],
                   )),
-                  
-                  // Water Tank Storage (连接 Float Water Level Sensor 水位浮子传感器)
                   _buildCard(
                     _isWaterLevelNormal ? softIvoryWhite : const Color(0xFFFCE8E6),
                     Column(

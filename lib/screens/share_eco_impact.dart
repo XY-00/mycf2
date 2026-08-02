@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:gal/gal.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'setting_screen.dart'; // 引入 UserProfileCache
 
 class ShareEcoImpactDialog extends StatefulWidget {
   final String profileName;
@@ -152,6 +153,9 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
     } else {
       gradeColor = const Color(0xFFE53935);
     }
+
+    bool isAvatarLocal = UserProfileCache.avatarPath.isNotEmpty && (UserProfileCache.avatarPath.startsWith('/') || UserProfileCache.avatarPath.startsWith('file://'));
+    bool avatarExists = isAvatarLocal && File(UserProfileCache.avatarPath).existsSync();
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -316,7 +320,6 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
                               ),
                               child: Row(
                                 children: [
-                                  // 👑 换成和 Homepage 一致的普通标准人像头像（CircleAvatar + person 图标）
                                   Container(
                                     width: 26,
                                     height: 26,
@@ -324,13 +327,14 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
                                       shape: BoxShape.circle,
                                       border: Border.all(color: const Color(0xFF2C4A3E), width: 1.5),
                                       color: const Color(0xFF2C4A3E),
+                                      image: avatarExists ? DecorationImage(image: FileImage(File(UserProfileCache.avatarPath)), fit: BoxFit.cover) : null,
                                     ),
-                                    child: const Icon(Icons.person, color: Colors.white, size: 15),
+                                    child: !avatarExists ? const Icon(Icons.person, color: Colors.white, size: 15) : null,
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
-                                      '${widget.profileName.toUpperCase()}  •',
+                                      '${UserProfileCache.profileName}  •',
                                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF1B382B)),
                                       overflow: TextOverflow.ellipsis,
                                     ),
