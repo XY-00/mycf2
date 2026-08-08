@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'login_screen.dart';
+import 'hardware_status_manager.dart'; // 导入刚才新建的硬件状态管理文件
 
 class UserProfileCache {
   static String avatarPath = '';
@@ -51,7 +52,7 @@ class UserProfileCache {
 }
 
 class SettingScreen extends StatefulWidget {
-  const SettingScreen({Key? key}) : super(key: key);
+  const SettingScreen({super.key});
 
   @override
   State<SettingScreen> createState() => _SettingScreenState();
@@ -82,11 +83,17 @@ class _SettingScreenState extends State<SettingScreen> {
     super.initState();
     _initData();
     _initNotifications();
+
+    // 启动硬件状态监听，当后台状态刷新时触发 setState 渲染 UI
+    HardwareStatusManager.startMonitoring(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
     _pumpTimer?.cancel();
+    HardwareStatusManager.stopMonitoring();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -161,7 +168,7 @@ class _SettingScreenState extends State<SettingScreen> {
 
     _showSystemNotification(
       'CRITICAL WARNING: TANK EMPTY', 
-      '🚨 Float sensor detected water tank is empty! Water pumps have been automatically locked to prevent dry burning.',
+      'Float sensor detected water tank is empty! Water pumps have been automatically locked to prevent dry burning.',
       playSound: true,
     );
   }
@@ -173,14 +180,14 @@ class _SettingScreenState extends State<SettingScreen> {
         _isPumpActive = false;
         _remainingSeconds = 0;
       });
-      _showSystemNotification('Water Pump Stopped', '💧 Manual water pump has been stopped successfully.', playSound: false);
+      _showSystemNotification('Water Pump Stopped', 'Manual water pump has been stopped successfully.', playSound: false);
     } else {
       setState(() {
         _isPumpActive = true;
         _remainingSeconds = 10; 
       });
 
-      _showSystemNotification('Water Pump Activated', '🚿 Manual water pump activated for 10 seconds.', playSound: false);
+      _showSystemNotification('Water Pump Activated', 'Manual water pump activated for 10 seconds.', playSound: false);
 
       _pumpTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
         if (_remainingSeconds > 1) {
@@ -193,7 +200,7 @@ class _SettingScreenState extends State<SettingScreen> {
             _isPumpActive = false;
             _remainingSeconds = 0;
           });
-          _showSystemNotification('Water Pump Stopped', '💧 Water pump automatically stopped (Timer finished).', playSound: false);
+          _showSystemNotification('Water Pump Stopped', 'Water pump automatically stopped (Timer finished).', playSound: false);
         }
       });
     }
@@ -376,7 +383,7 @@ class _SettingScreenState extends State<SettingScreen> {
   }
 
   void _triggerSemiAutoNotification() {
-    _showSystemNotification('Semi Auto Alert', '🌱 Soil moisture dropped below red-line threshold!', playSound: true);
+    _showSystemNotification('Semi Auto Alert', 'Soil moisture dropped below red-line threshold!', playSound: true);
 
     showDialog(
       context: context,
@@ -399,7 +406,7 @@ class _SettingScreenState extends State<SettingScreen> {
               ),
               const SizedBox(height: 14),
               const Text(
-                '🌱 Soil moisture has dropped below the red-line threshold in Semi Auto mode.\n\nWould you like to trigger irrigation now, or ignore and water manually later?',
+                'Soil moisture has dropped below the red-line threshold in Semi Auto mode.\n\nWould you like to trigger irrigation now, or ignore and water manually later?',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 13, height: 1.4, color: Colors.black87),
               ),
@@ -536,16 +543,10 @@ class _SettingScreenState extends State<SettingScreen> {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  _buildStatusRow('myCF', true),
-                  _buildStatusRow('Camera Module', true),
-                  _buildStatusRow('DHT11 Temp & Humidity Sensor', true),
-                  _buildStatusRow('Soil Moisture Sensor 1', true),
-                  _buildStatusRow('Soil Moisture Sensor 2', true),
-                  _buildStatusRow('Soil Moisture Sensor 3', false),
-                  _buildStatusRow('Water Pump 1', true),
-                  _buildStatusRow('Water Pump 2', true),
-                  _buildStatusRow('Water Pump 3', true),
-                  _buildStatusRow('Float Water Level Sensor', true),
+                  HardwareStatusManager.buildStatusRow('myCF', HardwareStatusManager.isPiConnected),
+                  HardwareStatusManager.buildStatusRow('Camera Module', false),
+                  HardwareStatusManager.buildStatusRow('DHT11 Temp & Humidity Sensor', HardwareStatusManager.isDhtConnected),
+                  HardwareStatusManager.buildStatusRow('Float Water Level Sensor', HardwareStatusManager.isFloatConnected),
                 ]),
 
                 _buildSectionTitle('OPERATION & CONTROL'),
@@ -756,30 +757,6 @@ class _SettingScreenState extends State<SettingScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: children,
-      ),
-    );
-  }
-
-  Widget _buildStatusRow(String title, bool isConnected) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(child: Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87), overflow: TextOverflow.ellipsis)),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: isConnected ? Colors.green.shade50 : Colors.red.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: isConnected ? Colors.green.shade200 : Colors.red.shade200),
-            ),
-            child: Text(
-              isConnected ? 'Connected' : 'Unconnected',
-              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isConnected ? Colors.green.shade700 : Colors.red.shade700),
-            ),
-          ),
-        ],
       ),
     );
   }

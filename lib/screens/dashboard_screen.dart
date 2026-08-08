@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'setting_screen.dart'; // 引入 UserProfileCache
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
+  const DashboardScreen({super.key});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -25,6 +25,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _initData();
     _fetchTotalCarbonFromDatabase();
+    _fetchLatestDHTData(); // <--- 确保一打开 App 就先拉取数据库最新的一条温湿度
     _initSupabaseRealtime();
   }
 
@@ -45,33 +46,62 @@ class _DashboardScreenState extends State<DashboardScreen> {
         for (var item in response) {
           total += double.tryParse(item['saved_amount'].toString()) ?? 0.0;
         }
-        setState(() {
-          _carbonSaved = total;
-        });
+        if (mounted) {
+          setState(() {
+            _carbonSaved = total;
+          });
+        }
       }
     } catch (e) {
       debugPrint('Database carbon fetch error: $e');
     }
   }
 
+  // 刚打开 App 时先获取一次数据库里最新的温湿度，防止界面显示默认旧数据
+  Future<void> _fetchLatestDHTData() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final response = await supabase
+          .from('dht11_logs')
+          .select('temperature, humidity')
+          .order('id', ascending: false) // 按 id 倒序获取最新一条
+          .limit(1);
+
+      if (response != null && (response as List).isNotEmpty) {
+        final latest = response.first;
+        if (mounted) {
+          setState(() {
+            _temperature = double.tryParse(latest['temperature']?.toString() ?? '') ?? _temperature;
+            _humidity = double.tryParse(latest['humidity']?.toString() ?? '') ?? _humidity;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Fetch latest DHT error: $e');
+    }
+  }
+
+  // 针对树莓派 1 秒高频写入 dht11_logs 进行优化的实时监听
   void _initSupabaseRealtime() {
     _statusSubscription = Supabase.instance.client
-        .channel('public:live_status')
+        .channel('public:dht11_logs_channel')
         .onPostgresChanges(
-          event: PostgresChangeEvent.all,
+          event: PostgresChangeEvent.insert,
           schema: 'public',
-          table: 'live_status',
+          table: 'dht11_logs', // 监听树莓派写入的 dht11_logs 表
           callback: (payload) {
             final data = payload.newRecord;
             if (data.isNotEmpty) {
-              setState(() {
-                _temperature = (data['temperature'] ?? 26.5).toDouble();
-                _humidity = (data['humidity'] ?? 55.0).toDouble();
-                _moisture = (data['soil_moisture'] ?? 62.9).toDouble();
-                _stabilityScore = (data['stability_score'] ?? 90).toInt();
-                _policyStatus = data['traffic_light_state'] ?? 'GREEN';
-                _isWaterLevelNormal = data['water_level_normal'] ?? true;
-              });
+              // 安全解析树莓派推送的最新温湿度
+              double newTemp = double.tryParse(data['temperature']?.toString() ?? '') ?? _temperature;
+              double newHumidity = double.tryParse(data['humidity']?.toString() ?? '') ?? _humidity;
+              
+              if (mounted) {
+                setState(() {
+                  _temperature = newTemp;
+                  _humidity = newHumidity;
+                });
+              }
             }
           },
         )
