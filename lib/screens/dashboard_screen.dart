@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'setting_screen.dart'; // 引入 UserProfileCache
+import 'hardware_status_manager.dart'; // 引入硬件连接状态管理
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -15,8 +16,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double _moisture = 62.9;
   int _stabilityScore = 90;
   String _policyStatus = 'GREEN';
-  double _temperature = 26.5;
-  double _humidity = 55.0;
+  double? _temperature; // 改为可空类型以便判断无数据时显示 --
+  double? _humidity;    // 改为可空类型以便判断无数据时显示 --
   RealtimeChannel? _statusSubscription;
   bool _isWaterLevelNormal = true;
 
@@ -25,8 +26,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _initData();
     _fetchTotalCarbonFromDatabase();
-    _fetchLatestDHTData(); // <--- 确保一打开 App 就先拉取数据库最新的一条温湿度
+    _fetchLatestDHTData(); 
     _initSupabaseRealtime();
+
+    // 启动硬件状态监听，让 Dashboard 实时同步 DHT11 的连接状态
+    HardwareStatusManager.startMonitoring(() {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> _initData() async {
@@ -57,23 +63,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // 刚打开 App 时先获取一次数据库里最新的温湿度，防止界面显示默认旧数据
+  // 刚打开 App 时先获取一次数据库里最新的温湿度
   Future<void> _fetchLatestDHTData() async {
     try {
       final supabase = Supabase.instance.client;
       final response = await supabase
           .from('dht11_logs')
-          .select('temperature, humidity')
-          .order('id', ascending: false) // 按 id 倒序获取最新一条
+          .select('temperature, humidity, recorded_at')
+          .order('id', ascending: false)
           .limit(1);
 
       if (response != null && (response as List).isNotEmpty) {
         final latest = response.first;
-        if (mounted) {
-          setState(() {
-            _temperature = double.tryParse(latest['temperature']?.toString() ?? '') ?? _temperature;
-            _humidity = double.tryParse(latest['humidity']?.toString() ?? '') ?? _humidity;
-          });
+        final lastRecordTimeStr = latest['recorded_at']?.toString();
+        
+        // 校验如果最后一条记录在 15 秒以内，才赋予初始数值，否则视为无数据
+        if (lastRecordTimeStr != null) {
+          DateTime lastTime = DateTime.parse(lastRecordTimeStr).toLocal();
+          if (DateTime.now().difference(lastTime).inSeconds < 15) {
+            if (mounted) {
+              setState(() {
+                _temperature = double.tryParse(latest['temperature']?.toString() ?? '');
+                _humidity = double.tryParse(latest['humidity']?.toString() ?? '');
+              });
+            }
+          }
         }
       }
     } catch (e) {
@@ -81,20 +95,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // 针对树莓派 1 秒高频写入 dht11_logs 进行优化的实时监听
+  // 针对树莓派高频写入 dht11_logs 进行优化的实时监听
   void _initSupabaseRealtime() {
     _statusSubscription = Supabase.instance.client
         .channel('public:dht11_logs_channel')
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
-          table: 'dht11_logs', // 监听树莓派写入的 dht11_logs 表
+          table: 'dht11_logs',
           callback: (payload) {
             final data = payload.newRecord;
             if (data.isNotEmpty) {
-              // 安全解析树莓派推送的最新温湿度
-              double newTemp = double.tryParse(data['temperature']?.toString() ?? '') ?? _temperature;
-              double newHumidity = double.tryParse(data['humidity']?.toString() ?? '') ?? _humidity;
+              double? newTemp = double.tryParse(data['temperature']?.toString() ?? '');
+              double? newHumidity = double.tryParse(data['humidity']?.toString() ?? '');
               
               if (mounted) {
                 setState(() {
@@ -113,6 +126,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (_statusSubscription != null) {
       Supabase.instance.client.removeChannel(_statusSubscription!);
     }
+    HardwareStatusManager.stopMonitoring();
     super.dispose();
   }
 
@@ -123,6 +137,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     bool isAvatarLocal = UserProfileCache.avatarPath.isNotEmpty && (UserProfileCache.avatarPath.startsWith('/') || UserProfileCache.avatarPath.startsWith('file://'));
     bool avatarExists = isAvatarLocal && File(UserProfileCache.avatarPath).existsSync();
+
+    // 只有当 DHT11 处于 Connected 状态且有数值时才显示数字，否则显示 --
+    bool isDhtConnected = HardwareStatusManager.isDhtConnected;
+    String tempStr = (isDhtConnected && _temperature != null) ? '${_temperature!.toStringAsFixed(1)} °C' : '-- °C';
+    String humStr = (isDhtConnected && _humidity != null) ? '${_humidity!.toStringAsFixed(0)} %' : '-- %';
 
     return Scaffold(
       backgroundColor: Colors.transparent, 
@@ -179,9 +198,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 14),
                   Row(
                     children: [
-                      Expanded(child: _miniCard('Temperature', '${_temperature.toStringAsFixed(1)} °C', Icons.thermostat, Colors.orange)),
+                      Expanded(child: _miniCard('Temperature', tempStr, Icons.thermostat, Colors.orange)),
                       const SizedBox(width: 12),
-                      Expanded(child: _miniCard('Humidity', '${_humidity.toStringAsFixed(0)} %', Icons.water_drop_outlined, Colors.blue)),
+                      Expanded(child: _miniCard('Humidity', humStr, Icons.water_drop_outlined, Colors.blue)),
                     ],
                   ),
                   const SizedBox(height: 14),

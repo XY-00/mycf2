@@ -1,88 +1,96 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class HardwareStatusManager {
-  // 独立的动态连接状态变量（静态缓存，切页面不闪烁）
-  static bool isPiConnected = false;     // myCF (树莓派总开机状态)
-  static bool isDhtConnected = false;    // DHT11 传感器状态
-  static bool isFloatConnected = false;  // 浮子水位传感器状态
+  static bool isPiConnected = false;     
+  static bool isDhtConnected = false;    
+  static bool isFloatConnected = false;  
 
-  // 用于检测的缓存变量
-  static int _lastCheckedId = -1;
-  static int _unchangedCount = 0;
+  static bool _lastPiStatus = false;
   static Timer? _statusCheckTimer;
+  static FlutterLocalNotificationsPlugin? _notificationsPlugin;
+  static bool _isInitialized = false;
 
-  // 初始化定时轮询
+  static void initNotifications(FlutterLocalNotificationsPlugin plugin) {
+    _notificationsPlugin = plugin;
+  }
+
   static void startMonitoring(VoidCallback onUpdate) {
-    // 首次进入立即检测一次
+    if (_isInitialized) return;
+    _isInitialized = true;
+
     checkHardwareConnection(onUpdate);
 
-    // 每 5 秒轮询一次数据库
     _statusCheckTimer?.cancel();
-    _statusCheckTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _statusCheckTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       checkHardwareConnection(onUpdate);
     });
   }
 
-  // 停止轮询
   static void stopMonitoring() {
     _statusCheckTimer?.cancel();
     _statusCheckTimer = null;
+    _isInitialized = false;
   }
 
-  // 核心检测逻辑
   static Future<void> checkHardwareConnection(VoidCallback onUpdate) async {
     try {
       final supabase = Supabase.instance.client;
       
-      final response = await supabase
-          .from('dht11_logs')
-          .select('id, recorded_at')
+      final piResponse = await supabase
+          .from('raspberry_pi_status')
+          .select('last_seen')
           .order('id', ascending: false)
           .limit(1);
 
-      if (response != null && (response as List).isNotEmpty) {
-        final lastRecordTimeStr = response.first['recorded_at']?.toString();
-        int latestId = int.tryParse(response.first['id'].toString()) ?? -1;
-
-        bool piOnline = false;
-        if (lastRecordTimeStr != null) {
-          DateTime lastTime = DateTime.parse(lastRecordTimeStr).toLocal();
+      bool piOnline = false;
+      if (piResponse != null && (piResponse as List).isNotEmpty) {
+        final lastSeenStr = piResponse.first['last_seen']?.toString();
+        if (lastSeenStr != null) {
+          DateTime lastTime = DateTime.parse(lastSeenStr).toLocal();
           Duration difference = DateTime.now().difference(lastTime);
           
-          // 超过 15 秒没有新数据，判定树莓派关机 (Unconnected)
-          piOnline = difference.inSeconds < 15;
+          // 核心优化：将时间差缩短到 6 秒内，实现极速响应！
+          piOnline = difference.inSeconds < 6; 
         }
-
-        // 检查 DHT11 脚本是否在持续运行（ID 是否增长）
-        if (latestId == _lastCheckedId) {
-          _unchangedCount++;
-        } else {
-          _lastCheckedId = latestId;
-          _unchangedCount = 0;
-        }
-        bool dhtOnline = _unchangedCount < 1 && piOnline; 
-
-        // 树莓派关机时，水位传感器同步断开
-        bool floatOnline = piOnline;
-
-        isPiConnected = piOnline;
-        isDhtConnected = dhtOnline;
-        isFloatConnected = floatOnline;
-
-        onUpdate();
-        return;
       }
-      
-      // 查不到记录时全部置为离线
-      isPiConnected = false;
-      isDhtConnected = false;
-      isFloatConnected = false;
+
+      // 简化 DHT 传感器状态，只要树莓派在线它就判定为在线
+      bool dhtOnline = piOnline; 
+
+      // 状态一旦改变，3~5秒内立刻触发系统弹窗通知
+      if (piOnline != _lastPiStatus) {
+        _lastPiStatus = piOnline;
+        if (piOnline) {
+          _sendNotification(
+            'myCF Connected', 
+            'System successfully connected to myCF (Raspberry Pi is online).'
+          );
+        } else {
+          _sendNotification(
+            'CRITICAL WARNING: myCF OFF', 
+            'Cannot connect to myCF! Raspberry Pi is offline or powered off.'
+          );
+        }
+      }
+
+      isPiConnected = piOnline;
+      isDhtConnected = dhtOnline;
+      isFloatConnected = false; 
+
       onUpdate();
       
     } catch (e) {
       debugPrint('Hardware connection check error: $e');
+      if (_lastPiStatus != false) {
+        _lastPiStatus = false;
+        _sendNotification(
+          'CRITICAL WARNING: myCF OFF', 
+          'Connection error! myCF is offline.'
+        );
+      }
       isPiConnected = false;
       isDhtConnected = false;
       isFloatConnected = false;
@@ -90,7 +98,34 @@ class HardwareStatusManager {
     }
   }
 
-  // 渲染状态行组件
+  static Future<void> _sendNotification(String title, String body) async {
+    if (_notificationsPlugin == null) return;
+
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'mycf_hardware_channel_id',
+      'myCF Hardware Status Alerts',
+      channelDescription: 'Notifications for Raspberry Pi connection changes',
+      importance: Importance.max,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+      styleInformation: BigTextStyleInformation(
+        body,
+        contentTitle: title,
+        htmlFormatContent: true,
+        htmlFormatContentTitle: true,
+      ),
+    );
+
+    final notificationDetails = NotificationDetails(android: androidDetails);
+
+    await _notificationsPlugin!.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title,
+      body,
+      notificationDetails,
+    );
+  }
+
   static Widget buildStatusRow(String title, bool isConnected) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),

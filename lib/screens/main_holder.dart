@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dashboard_screen.dart';
 import 'plant_profile_screen.dart';
 import 'analytic_screen.dart';
 import 'eco_impact_screen.dart';
 import 'setting_screen.dart';
+import 'hardware_status_manager.dart';
 
 class MainHolder extends StatefulWidget {
   const MainHolder({Key? key}) : super(key: key);
@@ -14,6 +16,9 @@ class MainHolder extends StatefulWidget {
 
 class _MainHolderState extends State<MainHolder> {
   int _currentIndex = 0;
+  
+  final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
+
   final List<Widget> _pages = [
     const DashboardScreen(),
     const PlantProfileScreen(),
@@ -21,6 +26,34 @@ class _MainHolderState extends State<MainHolder> {
     const EcoImpactScreen(),
     const SettingScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _initNotifications();
+
+    HardwareStatusManager.initNotifications(_notificationsPlugin);
+    HardwareStatusManager.startMonitoring(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  void _initNotifications() async {
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    const InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
+    );
+
+    await _notificationsPlugin.initialize(initializationSettings);
+  }
+
+  @override
+  void dispose() {
+    HardwareStatusManager.stopMonitoring();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +80,6 @@ class _MainHolderState extends State<MainHolder> {
               type: BottomNavigationBarType.fixed,
               selectedItemColor: const Color(0xFF497E66),
               unselectedItemColor: Colors.grey,
-              // 👑 关键：优化字体与图标间距，确保 5 个选项等分对齐，绝不拥挤
               showUnselectedLabels: true,
               selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
               unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 10),

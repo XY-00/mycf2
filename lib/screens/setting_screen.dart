@@ -8,7 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'login_screen.dart';
-import 'hardware_status_manager.dart'; // 导入刚才新建的硬件状态管理文件
+import 'hardware_status_manager.dart';
 
 class UserProfileCache {
   static String avatarPath = '';
@@ -84,7 +84,7 @@ class _SettingScreenState extends State<SettingScreen> {
     _initData();
     _initNotifications();
 
-    // 启动硬件状态监听，当后台状态刷新时触发 setState 渲染 UI
+    HardwareStatusManager.initNotifications(_notificationsPlugin);
     HardwareStatusManager.startMonitoring(() {
       if (mounted) setState(() {});
     });
@@ -93,7 +93,6 @@ class _SettingScreenState extends State<SettingScreen> {
   @override
   void dispose() {
     _pumpTimer?.cancel();
-    HardwareStatusManager.stopMonitoring();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -143,6 +142,8 @@ class _SettingScreenState extends State<SettingScreen> {
       styleInformation: BigTextStyleInformation(
         body,
         contentTitle: title,
+        htmlFormatContent: true,
+        htmlFormatContentTitle: true,
       ),
     );
 
@@ -545,7 +546,6 @@ class _SettingScreenState extends State<SettingScreen> {
                   const SizedBox(height: 10),
                   HardwareStatusManager.buildStatusRow('myCF', HardwareStatusManager.isPiConnected),
                   HardwareStatusManager.buildStatusRow('Camera Module', false),
-                  HardwareStatusManager.buildStatusRow('DHT11 Temp & Humidity Sensor', HardwareStatusManager.isDhtConnected),
                   HardwareStatusManager.buildStatusRow('Float Water Level Sensor', HardwareStatusManager.isFloatConnected),
                 ]),
 
