@@ -21,6 +21,8 @@ class HardwareStatusManager {
     if (_isInitialized) return;
     _isInitialized = true;
 
+    _lastPiStatus = false;
+
     checkHardwareConnection(onUpdate);
 
     _statusCheckTimer?.cancel();
@@ -43,7 +45,8 @@ class HardwareStatusManager {
           .from('raspberry_pi_status')
           .select('last_seen')
           .order('id', ascending: false)
-          .limit(1);
+          .limit(1)
+          .timeout(const Duration(seconds: 3));
 
       bool piOnline = false;
       if (piResponse != null && (piResponse as List).isNotEmpty) {
@@ -52,15 +55,12 @@ class HardwareStatusManager {
           DateTime lastTime = DateTime.parse(lastSeenStr).toLocal();
           Duration difference = DateTime.now().difference(lastTime);
           
-          // 核心优化：将时间差缩短到 6 秒内，实现极速响应！
           piOnline = difference.inSeconds < 6; 
         }
       }
 
-      // 简化 DHT 传感器状态，只要树莓派在线它就判定为在线
       bool dhtOnline = piOnline; 
 
-      // 状态一旦改变，3~5秒内立刻触发系统弹窗通知
       if (piOnline != _lastPiStatus) {
         _lastPiStatus = piOnline;
         if (piOnline) {
@@ -83,7 +83,7 @@ class HardwareStatusManager {
       onUpdate();
       
     } catch (e) {
-      debugPrint('Hardware connection check error: $e');
+      debugPrint('Hardware connection check error or timeout: $e');
       if (_lastPiStatus != false) {
         _lastPiStatus = false;
         _sendNotification(
@@ -107,7 +107,11 @@ class HardwareStatusManager {
       channelDescription: 'Notifications for Raspberry Pi connection changes',
       importance: Importance.max,
       priority: Priority.high,
+      ticker: 'myCF Hardware Alert',
       icon: '@mipmap/ic_launcher',
+      enableVibration: true,
+      playSound: true,
+      category: AndroidNotificationCategory.call, 
       styleInformation: BigTextStyleInformation(
         body,
         contentTitle: title,

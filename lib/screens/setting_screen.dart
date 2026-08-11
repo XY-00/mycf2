@@ -85,9 +85,7 @@ class _SettingScreenState extends State<SettingScreen> {
     _initNotifications();
 
     HardwareStatusManager.initNotifications(_notificationsPlugin);
-    HardwareStatusManager.startMonitoring(() {
-      if (mounted) setState(() {});
-    });
+    if (mounted) setState(() {});
   }
 
   @override
@@ -710,6 +708,9 @@ class _SettingScreenState extends State<SettingScreen> {
 
                 InkWell(
                   onTap: () async {
+                    // 登出时主动停止硬件监控并重置状态记忆，确保换账号登录时重新检测
+                    HardwareStatusManager.stopMonitoring();
+
                     await Supabase.instance.client.auth.signOut();
                     if (context.mounted) {
                       Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);

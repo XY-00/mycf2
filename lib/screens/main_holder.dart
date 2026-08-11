@@ -32,6 +32,7 @@ class _MainHolderState extends State<MainHolder> {
     super.initState();
     _initNotifications();
 
+    // 整个 App 生命周期的全局唯一监控启动入口
     HardwareStatusManager.initNotifications(_notificationsPlugin);
     HardwareStatusManager.startMonitoring(() {
       if (mounted) setState(() {});

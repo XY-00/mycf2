@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'setting_screen.dart'; // 引入 UserProfileCache
-import 'hardware_status_manager.dart'; // 引入硬件连接状态管理
+import 'setting_screen.dart'; 
+import 'hardware_status_manager.dart'; 
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -16,8 +16,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double _moisture = 62.9;
   int _stabilityScore = 90;
   String _policyStatus = 'GREEN';
-  double? _temperature; // 改为可空类型以便判断无数据时显示 --
-  double? _humidity;    // 改为可空类型以便判断无数据时显示 --
+  double? _temperature; 
+  double? _humidity;    
   RealtimeChannel? _statusSubscription;
   bool _isWaterLevelNormal = true;
 
@@ -28,11 +28,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _fetchTotalCarbonFromDatabase();
     _fetchLatestDHTData(); 
     _initSupabaseRealtime();
-
-    // 启动硬件状态监听，让 Dashboard 实时同步 DHT11 的连接状态
-    HardwareStatusManager.startMonitoring(() {
-      if (mounted) setState(() {});
-    });
+    // 注意：这里不再重复启动 startMonitoring，交由全局 MainHolder 统一管理
   }
 
   Future<void> _initData() async {
@@ -63,7 +59,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // 刚打开 App 时先获取一次数据库里最新的温湿度
   Future<void> _fetchLatestDHTData() async {
     try {
       final supabase = Supabase.instance.client;
@@ -77,7 +72,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final latest = response.first;
         final lastRecordTimeStr = latest['recorded_at']?.toString();
         
-        // 校验如果最后一条记录在 15 秒以内，才赋予初始数值，否则视为无数据
         if (lastRecordTimeStr != null) {
           DateTime lastTime = DateTime.parse(lastRecordTimeStr).toLocal();
           if (DateTime.now().difference(lastTime).inSeconds < 15) {
@@ -95,7 +89,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // 针对树莓派高频写入 dht11_logs 进行优化的实时监听
   void _initSupabaseRealtime() {
     _statusSubscription = Supabase.instance.client
         .channel('public:dht11_logs_channel')
@@ -126,7 +119,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (_statusSubscription != null) {
       Supabase.instance.client.removeChannel(_statusSubscription!);
     }
-    HardwareStatusManager.stopMonitoring();
     super.dispose();
   }
 
@@ -138,7 +130,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     bool isAvatarLocal = UserProfileCache.avatarPath.isNotEmpty && (UserProfileCache.avatarPath.startsWith('/') || UserProfileCache.avatarPath.startsWith('file://'));
     bool avatarExists = isAvatarLocal && File(UserProfileCache.avatarPath).existsSync();
 
-    // 只有当 DHT11 处于 Connected 状态且有数值时才显示数字，否则显示 --
     bool isDhtConnected = HardwareStatusManager.isDhtConnected;
     String tempStr = (isDhtConnected && _temperature != null) ? '${_temperature!.toStringAsFixed(1)} °C' : '-- °C';
     String humStr = (isDhtConnected && _humidity != null) ? '${_humidity!.toStringAsFixed(0)} %' : '-- %';
