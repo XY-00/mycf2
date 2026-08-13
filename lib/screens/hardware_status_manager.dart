@@ -8,7 +8,7 @@ class HardwareStatusManager {
   static bool isDhtConnected = false;    
   static bool isFloatConnected = false;  
 
-  static bool _lastPiStatus = false;
+  static bool? _lastPiStatus; 
   static Timer? _statusCheckTimer;
   static FlutterLocalNotificationsPlugin? _notificationsPlugin;
   static bool _isInitialized = false;
@@ -27,7 +27,8 @@ class HardwareStatusManager {
     if (_isInitialized) return;
     _isInitialized = true;
 
-    _lastPiStatus = false;
+    debugPrint('HardwareStatusManager: Monitoring started successfully!');
+    _lastPiStatus = null; 
     checkHardwareConnection();
 
     _statusCheckTimer?.cancel();
@@ -74,13 +75,27 @@ class HardwareStatusManager {
       if (piResponse != null && (piResponse as List).isNotEmpty) {
         final lastSeenStr = piResponse.first['last_seen']?.toString();
         if (lastSeenStr != null) {
-          DateTime lastTime = DateTime.parse(lastSeenStr).toLocal();
-          Duration difference = DateTime.now().difference(lastTime);
-          piOnline = difference.inSeconds < 6; 
+          // 👑 终极核心修复：切掉 Supabase 强加的 "+00" 时区尾巴
+          // 把 "2026-08-13 20:16:45+00" 变成干净的 "2026-08-13 20:16:45"
+          String rawTime = lastSeenStr;
+          if (rawTime.contains('+')) {
+            rawTime = rawTime.split('+')[0];
+          } else if (rawTime.endsWith('Z')) {
+            rawTime = rawTime.replaceAll('Z', '');
+          }
+
+          // 这样 Flutter 就会把它当做和手机一模一样的本地时间
+          DateTime piLastTimeLocal = DateTime.parse(rawTime);
+          int diffSeconds = DateTime.now().difference(piLastTimeLocal).inSeconds;
+          
+          debugPrint('Pi LastSeen (Clean Local): $piLastTimeLocal, Now: ${DateTime.now()}, Diff: $diffSeconds');
+          
+          // 树莓派每 2 秒发一次。误差允许 -10秒 到 6秒。超过 6 秒即判定关机离线！
+          piOnline = (diffSeconds >= -10 && diffSeconds <= 6); 
         }
       }
 
-      // 严厉修复：必须使用绝对 UTC 时间差对比，防止切页面时被旧时间戳欺骗
+      // DHT11 也做同样的切除时差处理
       bool dhtOnline = false;
       try {
         final dhtResponse = await supabase
@@ -93,28 +108,48 @@ class HardwareStatusManager {
         if (dhtResponse != null && (dhtResponse as List).isNotEmpty) {
           final recordedStr = dhtResponse.first['recorded_at']?.toString();
           if (recordedStr != null) {
-            DateTime dhtLastTime = DateTime.parse(recordedStr);
-            // 必须严格利用 .toUtc() 减去当前 UTC 时间，杜绝时区导致的负数或错误判定
-            int dhtDiff = DateTime.now().toUtc().difference(dhtLastTime.toUtc()).inSeconds;
-            dhtOnline = (dhtDiff >= 0 && dhtDiff < 7); // 只有 0 到 7 秒之间才算在线！超过或未来时间一律算离线！
+            String rawDhtTime = recordedStr;
+            if (rawDhtTime.contains('+')) rawDhtTime = rawDhtTime.split('+')[0];
+            else if (rawDhtTime.endsWith('Z')) rawDhtTime = rawDhtTime.replaceAll('Z', '');
+
+            DateTime dhtLastTimeLocal = DateTime.parse(rawDhtTime);
+            int dhtDiff = DateTime.now().difference(dhtLastTimeLocal).inSeconds;
+            dhtOnline = (dhtDiff >= -10 && dhtDiff <= 7);
           }
         }
       } catch (e) {
         dhtOnline = false;
       }
 
-      if (piOnline != _lastPiStatus) {
+      // 👑 完美逻辑控制：
+      if (_lastPiStatus == null) {
+        // 【1. 登录瞬间（第一次检查）】
         _lastPiStatus = piOnline;
         if (piOnline) {
+          // 需求：如果 login 时已经开机了，就直接出弹窗
           _sendNotification(
             'myCF Connected', 
             'System successfully connected to myCF (Raspberry Pi is online).'
           );
-        } else {
-          _sendNotification(
-            'CRITICAL WARNING: myCF OFF', 
-            'Cannot connect to myCF! Raspberry Pi is offline or powered off.'
-          );
+        }
+        // 需求：如果没有开机，就不需要弹窗（静默过去，直接变 Unconnected）
+        debugPrint('Initial Pi Status initialized. Is Online: $piOnline');
+      } else {
+        // 【2. 运行过程中的状态改变】
+        if (piOnline != _lastPiStatus) {
+          _lastPiStatus = piOnline;
+          if (piOnline) {
+            _sendNotification(
+              'myCF Connected', 
+              'System successfully connected to myCF (Raspberry Pi is online).'
+            );
+          } else {
+            // 需求：如果关机了，大概 5~6 秒这样就会因为超时跳到这里，弹出关机信息！
+            _sendNotification(
+              'CRITICAL WARNING: myCF OFF', 
+              'Cannot connect to myCF! Raspberry Pi is offline or powered off.'
+            );
+          }
         }
       }
 
@@ -126,13 +161,14 @@ class HardwareStatusManager {
       
     } catch (e) {
       debugPrint('Hardware connection check error or timeout: $e');
-      if (_lastPiStatus != false) {
+      if (_lastPiStatus != null && _lastPiStatus != false) {
         _lastPiStatus = false;
         _sendNotification(
           'CRITICAL WARNING: myCF OFF', 
           'Connection error! myCF is offline.'
         );
       }
+      _lastPiStatus = false;
       isPiConnected = false;
       isDhtConnected = false;
       isFloatConnected = false;
