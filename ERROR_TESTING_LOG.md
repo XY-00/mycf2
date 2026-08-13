@@ -176,3 +176,120 @@ This document records the error testing, debugging processes, and resolutions en
   * Rewrote `_getXLabels` and `_processDataForMode` logic in `MoistureChartCard` to map continuous 24-hour hourly points (`00`–`23`) for Daily mode and exact full-month sequences (`1`–`31`) for Monthly mode.
   * Expanded the calendar picker historical range (`2020`–`2030`) while strictly capping the maximum selectable date to `DateTime.now()` to disable future selections and enable full historical accessibility.
   * Standardized `analytic_screen.dart` with clean white primary cards (`Colors.white`) paired with distinct, soft inner card backgrounds (`Color(0xFFF2F6F0)`) and delicate borders to maximize legibility and achieve a clean, modern aesthetic.
+
+## 18. Setting Screen Hardware Status Desynchronization Fix
+* **Issue**: When the Raspberry Pi was powered off, the global backend correctly detected the disconnection, but the `SettingScreen` UI failed to reflect the change, remaining stuck on the "Connected" status.
+* **Testing / Resolution**: 
+  * Identified that `SettingScreen` was missing a registered state-update callback for `HardwareStatusManager.startMonitoring()`, causing its local UI state to remain desynchronized from the global connection flag.
+  * Added `HardwareStatusManager.startMonitoring(() { if (mounted) setState(() {}); });` inside the `initState` of `SettingScreen`, ensuring real-time UI synchronization whenever the hardware status changes.
+
+## 19. Setting Screen Real-Time Hardware Status Desynchronization Fix
+* **Issue**: When the Raspberry Pi was powered off, the `SettingScreen` UI remained stuck on "Connected" and only updated to "Unconnected" when navigating away and back to the settings tab.
+* **Testing / Resolution**: 
+  * Identified that while global monitoring was active, the UI render tree in `SettingScreen` lacked an active state-invalidation trigger linked to the background polling loop.
+  * Ensured `HardwareStatusManager.startMonitoring(() { if (mounted) setState(() {}); });` was correctly bound within the `initState` of `SettingScreen`, forcing real-time UI re-renders every 3 seconds as status updates occurred.
+
+## 20. Real-Time Hardware Status Listener Decoupling & UI Synchronization Fix
+* **Issue**: When staying on the `SettingScreen`, powering on or off the Raspberry Pi did not trigger real-time UI updates (Connected <-> Unconnected), requiring manual page navigation to force a rebuild.
+* **Testing / Resolution**: 
+  * Identified that `HardwareStatusManager.startMonitoring` contained strict initialization guards (`_isInitialized`) which blocked secondary screen registrations when called from `SettingScreen`.
+  * Decoupled the central polling timer from individual screen updates by introducing a subscriber pattern (`_listeners` list, `addListener`, and `removeListener`) inside `HardwareStatusManager`.
+  * Updated `SettingScreen` to register its local `setState` callback using `HardwareStatusManager.addListener` during `initState` and clean it up via `removeListener` during `dispose`, achieving seamless, real-time UI synchronization across state changes without page switching.
+
+## 21. Hardware Reconnection Delay Analysis & Boot-Up Latency
+* **Issue**: When powering on the Raspberry Pi, the "Connected" notification took significantly longer (around 30 seconds) compared to the rapid disconnection warning (~6 seconds).
+* **Testing / Resolution**: 
+  * Analyzed the hardware lifecycle and cloud synchronization flow. Confirmed that the delayed reconnection response is caused by the physical boot-up time, operating system initialization, and Wi-Fi reconnection sequence of the Raspberry Pi before it can successfully write a fresh heartbeat timestamp (`last_seen`) to the Supabase database.
+
+## 22. Database Row Level Security (RLS) Configuration for IoT Hardware Ingestion
+* **Issue**: Clarification was needed regarding whether Supabase RLS must be disabled (`RLS disabled`) for external IoT devices like the Raspberry Pi to successfully write DHT11 sensor logs without user authentication context.
+* **Testing / Resolution**: 
+  * Analyzed Supabase access control mechanisms for headless IoT hardware scripts lacking user tokens (`auth.uid()`).
+  * Confirmed that maintaining `RLS disabled` on ingestion tables (`dht11_logs`) simplifies hardware data insertion for academic project prototypes, while alternative secure implementations require explicit table policies.
+  * Established the standard Python-to-Supabase insertion workflow using the `supabase-py` client library to continuously sync real-time temperature and humidity metrics.
+
+## 23. Defense Preparation: RLS Justification for IoT Data Ingestion
+* **Issue**: Prepared a formal academic explanation for the project defense panel regarding the security and architectural rationale for disabling Row Level Security (RLS) on IoT sensor logging tables.
+* **Testing / Resolution**: 
+  * Formulated a structured defense response addressing headless IoT device limitations, lack of user session tokens, real-time data flow requirements for environmental monitoring, and prospective production-level hardening strategies (such as API gateway tokens or service roles).
+
+## 24. Raspberry Pi DHT11 Sensor Ingestion Script Implementation
+* **Issue**: Developed a dedicated Python background script to continuously read temperature and humidity metrics from the DHT11 sensor on the Raspberry Pi and insert them into the cloud `dht11_logs` table.
+* **Testing / Resolution**: 
+  * Integrated the `Adafruit_DHT` sensor library with the `supabase-py` client.
+  * Implemented an infinite polling loop with 10-second intervals and built-in exception handling to ensure continuous, resilient data synchronization from the edge hardware to Supabase.
+
+## 25. Unicode Encoding Error During File Save (`\udcb0` Surrogate)
+* **Issue**: Clicking save in the Thonny IDE triggered a `UnicodeEncodeError` (`'utf-8' codec can't encode character '\udcb0'`), crashing the file saving handler due to unrecognized surrogate characters present in the editor content buffer.
+* **Testing / Resolution**: 
+  * Analyzed the traceback pointing to `codeview.py` during byte-encoding conversion.
+  * Determined that invalid or corrupted character encodings (often introduced via copy-pasting from external sources) caused the UTF-8 encoder to reject the byte stream.
+  * Resolved by isolating and removing the corrupted character/snippet from the source file and transferring clean text into a newly created editor instance.
+
+## 26. Externally Managed Environment Error (`PEP 668`) During Pip Installation
+* **Issue**: Executing `pip install supabase Adafruit_DHT` on the Raspberry Pi terminal triggered an `externally-managed-environment` error (`PEP 668`), preventing global package installation to protect system stability.
+* **Testing / Resolution**: 
+  * Analyzed the Linux distribution package management protection policy for system-wide Python environments.
+  * Resolved the restriction by either establishing an isolated Python virtual environment (`python3 -m venv`) or utilizing the system override flag (`--break-system-packages`) for rapid prototype deployment.
+
+## 27. Architectural Rationale for Python Virtual Environments (`venv`)
+* **Issue**: Addressed conceptual questions regarding why isolated Python virtual environments (`venv`) are mandatory for IoT hardware scripts on Linux distributions.
+* **Testing / Resolution**: 
+  * Documented the core benefits of virtual environments: bypassing system-level PEP 668 package protection blocks, preventing cross-project dependency and version conflicts, and ensuring reliable software reproducibility across different deployment targets.
+
+## 28. Deprecated Adafruit_DHT Wheel Build Failure and Migration to CircuitPython
+* **Issue**: Installing the legacy `Adafruit_DHT` package via `pip` failed during the wheel building phase with `subprocess-exited-with-error` and `Could not detect if running on the Raspberry Pi or Beaglebone Black`, caused by incompatibility with modern Python versions (Python 3.13) and updated Linux kernel environments.
+* **Testing / Resolution**: 
+  * Identified that the original `Adafruit_Python_DHT` repository has been officially archived and deprecated by Adafruit in favor of CircuitPython libraries.
+  * Resolved the build failure by abandoning the legacy package and migrating to the modern `adafruit-circuitpython-dht` and `board` libraries within the isolated virtual environment.
+  * Refactored the Python ingestion script to utilize the `adafruit_dht.DHT11(board.D4)` interface with built-in `RuntimeError` tolerance for stable continuous logging.
+
+## 29. Missing `swig` Build Dependency Error for `lgpio` Package
+* **Issue**: Installing `adafruit-circuitpython-dht` (along with its Blinka hardware dependencies) failed during wheel building for `lgpio` with `error: command 'swig' failed: No such file or directory`.
+* **Testing / Resolution**: 
+  * Analyzed the compilation logs indicating that the SWIG (Simplified Wrapper and Interface Generator) tool and Python development headers were missing from the host environment, preventing C-extension wrapping.
+  * Resolved by installing the required system packages via APT (`sudo apt install -y swig python3-dev`) and re-running the pip installation within the active virtual environment.
+  
+## 30. Missing System `lgpio` C Library Linker Error (`-llgpio`)
+* **Issue**: Even after installing SWIG, the Python package installation failed during the `lgpio` wheel building phase with `/usr/bin/ld: cannot find -llgpio: No such file or directory`, indicating that the underlying C shared library was absent from the Linux system paths.
+* **Testing / Resolution**: 
+  * Analyzed the GCC linker error showing the missing `-llgpio` dependency required by the Python wrapper.
+  * Resolved by installing the C development package via APT (`sudo apt install -y liblgpio-dev`) and re-executing the pip installation in the virtual environment.
+
+## 31. Module Not Found Error for Legacy `Adafruit_DHT` Library
+* **Issue**: Running `dht11_uploader.py` triggered a `ModuleNotFoundError: No module named 'Adafruit_DHT'` because the script still attempted to import the legacy package instead of the newly installed CircuitPython drivers.
+* **Testing / Resolution**: 
+  * Identified code-level dependency mismatch resulting from earlier package migrations.
+  * Resolved by fully updating the script imports to use `board` and `adafruit_dht` (`adafruit_dht.DHT11(board.D4)`), aligning the script with the newly compiled virtual environment dependencies.
+
+## 32. Finalized CircuitPython DHT11 Inscription Script Integration
+* **Issue**: The user's script contained legacy `Adafruit_DHT` imports and configuration structures, causing execution halts after migrating to the modern CircuitPython-based virtual environment.
+* **Testing / Resolution**: 
+  * Replaced the script base with the integrated `board.D4` and `adafruit_dht.DHT11` initialization sequence.
+  * Embedded robust `RuntimeError` exception handling to manage common hardware sensor timeout glitches without terminating the main synchronization loop.
+
+## 33. Module Not Found Error for `board` Package Due to Global Interpreter Execution
+* **Issue**: Executing `dht11_uploader.py` triggered a `ModuleNotFoundError: No module named 'board'` because the script was executed via the system's global Python interpreter rather than the isolated virtual environment where CircuitPython dependencies were installed.
+* **Testing / Resolution**: 
+  * Identified the environment desynchronization between the terminal execution context and the project's virtual environment.
+  * Resolved by explicitly sourcing the virtual environment (`source venv/bin/activate`) prior to script execution or re-configuring the Thonny IDE interpreter path to point directly to the project's `venv/bin/python3` binary.
+
+## 34. GPIO Line Initialization Error (`unable to set line to input`)
+* **Issue**: Running the Python sensor script raised a hardware-level `RuntimeError` stating `unable to set line 4 to input` due to lack of administrative permissions or resource conflicts on the Raspberry Pi GPIO pins.
+* **Testing / Resolution**: 
+  * Analyzed the underlying Linux hardware access constraints for user-space GPIO operations.
+  * Resolved by executing the script via administrative privileges (`sudo venv/bin/python`) or by granting permanent user permissions via group additions (`sudo usermod -a -G gpio,i2c,spi,dialout`) followed by a system reboot.
+
+## 35. GPIO Line Initialization Conflict & Migration to GPIO 17
+* **Issue**: Encountered persistent `Unable to set line 4 to input` and `sysv_ipc.Error` issues because GPIO 4 was pre-allocated or conflicted with the Raspberry Pi system's internal OneWire/hardware bus services.
+* **Testing / Resolution**: 
+  * Re-routed the DHT11 sensor data wire from physical Pin 7 (GPIO 4) to physical Pin 11 (GPIO 17), a clean general-purpose I/O pin free from background system reservations.
+  * Updated the Python script initialization string to `adafruit_dht.DHT11(board.D17)`.
+  * Executed the script via the elevated virtual environment runtime (`sudo venv/bin/python`), successfully resolving hardware permission locks and enabling stable, real-time 3-second data synchronization to Supabase.
+
+## 36. GPIO 4 Resource Lifecycle & Supabase Authentication Debugging Log
+* **Issue 1 (Hardware/Driver Lock)**: Encountered recurring `Unable to set line 4 to input` errors when restarting or interrupting scripts via `Ctrl + C`, caused by leftover kernel-level file descriptor states in the `lgpio` driver.
+  * **Testing & Resolution**: Implemented a self-healing pre-initialization cleanup routine using `lgpio.gpiochip_open(0)` and `lgpio.gpio_free(chip, 4)` at the entry point of the script, paired with a robust `KeyboardInterrupt` exception handler to ensure hardware resources are cleanly released upon exit.
+* **Issue 2 (Cloud Synchronization Auth)**: Raised a `postgrest.exceptions.APIError` (HTTP 401: `Invalid API key`) during data insertion to Supabase.
+  * **Testing & Resolution**: Verified and refreshed the project's public `anon` API key within the Supabase dashboard, ensuring the full JWT token string was correctly assigned to `SUPABASE_KEY`, which successfully restored authenticated real-time data uploads.
+

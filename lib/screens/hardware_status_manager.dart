@@ -12,32 +12,54 @@ class HardwareStatusManager {
   static Timer? _statusCheckTimer;
   static FlutterLocalNotificationsPlugin? _notificationsPlugin;
   static bool _isInitialized = false;
+  
+  static final List<VoidCallback> _listeners = [];
 
   static void initNotifications(FlutterLocalNotificationsPlugin plugin) {
     _notificationsPlugin = plugin;
   }
 
   static void startMonitoring(VoidCallback onUpdate) {
+    if (!_listeners.contains(onUpdate)) {
+      _listeners.add(onUpdate);
+    }
+
     if (_isInitialized) return;
     _isInitialized = true;
 
     _lastPiStatus = false;
-
-    checkHardwareConnection(onUpdate);
+    checkHardwareConnection();
 
     _statusCheckTimer?.cancel();
     _statusCheckTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      checkHardwareConnection(onUpdate);
+      checkHardwareConnection();
     });
+  }
+
+  static void addListener(VoidCallback onUpdate) {
+    if (!_listeners.contains(onUpdate)) {
+      _listeners.add(onUpdate);
+    }
+  }
+
+  static void removeListener(VoidCallback onUpdate) {
+    _listeners.remove(onUpdate);
   }
 
   static void stopMonitoring() {
     _statusCheckTimer?.cancel();
     _statusCheckTimer = null;
     _isInitialized = false;
+    _listeners.clear();
   }
 
-  static Future<void> checkHardwareConnection(VoidCallback onUpdate) async {
+  static void _notifyListeners() {
+    for (var listener in _listeners) {
+      listener();
+    }
+  }
+
+  static Future<void> checkHardwareConnection() async {
     try {
       final supabase = Supabase.instance.client;
       
@@ -54,12 +76,32 @@ class HardwareStatusManager {
         if (lastSeenStr != null) {
           DateTime lastTime = DateTime.parse(lastSeenStr).toLocal();
           Duration difference = DateTime.now().difference(lastTime);
-          
           piOnline = difference.inSeconds < 6; 
         }
       }
 
-      bool dhtOnline = piOnline; 
+      // 严厉修复：必须使用绝对 UTC 时间差对比，防止切页面时被旧时间戳欺骗
+      bool dhtOnline = false;
+      try {
+        final dhtResponse = await supabase
+            .from('dht11_logs')
+            .select('recorded_at')
+            .order('id', ascending: false)
+            .limit(1)
+            .timeout(const Duration(seconds: 3));
+
+        if (dhtResponse != null && (dhtResponse as List).isNotEmpty) {
+          final recordedStr = dhtResponse.first['recorded_at']?.toString();
+          if (recordedStr != null) {
+            DateTime dhtLastTime = DateTime.parse(recordedStr);
+            // 必须严格利用 .toUtc() 减去当前 UTC 时间，杜绝时区导致的负数或错误判定
+            int dhtDiff = DateTime.now().toUtc().difference(dhtLastTime.toUtc()).inSeconds;
+            dhtOnline = (dhtDiff >= 0 && dhtDiff < 7); // 只有 0 到 7 秒之间才算在线！超过或未来时间一律算离线！
+          }
+        }
+      } catch (e) {
+        dhtOnline = false;
+      }
 
       if (piOnline != _lastPiStatus) {
         _lastPiStatus = piOnline;
@@ -77,10 +119,10 @@ class HardwareStatusManager {
       }
 
       isPiConnected = piOnline;
-      isDhtConnected = dhtOnline;
+      isDhtConnected = dhtOnline; 
       isFloatConnected = false; 
 
-      onUpdate();
+      _notifyListeners();
       
     } catch (e) {
       debugPrint('Hardware connection check error or timeout: $e');
@@ -94,7 +136,8 @@ class HardwareStatusManager {
       isPiConnected = false;
       isDhtConnected = false;
       isFloatConnected = false;
-      onUpdate();
+      
+      _notifyListeners();
     }
   }
 

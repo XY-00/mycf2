@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -15,20 +16,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double _carbonSaved = 0.0;
   double _moisture = 62.9;
   int _stabilityScore = 90;
-  String _policyStatus = 'GREEN';
   double? _temperature; 
   double? _humidity;    
+  String? _lastRecordedTimeString; 
+  bool _isLoadingDHT = true; 
   RealtimeChannel? _statusSubscription;
   bool _isWaterLevelNormal = true;
+  
+  Timer? _offlineCheckTimer;
+  DateTime? _lastDataUpdateTime;
 
   @override
   void initState() {
     super.initState();
+    HardwareStatusManager.isDhtConnected = false; 
+    
     _initData();
     _fetchTotalCarbonFromDatabase();
     _fetchLatestDHTData(); 
     _initSupabaseRealtime();
-    // 注意：这里不再重复启动 startMonitoring，交由全局 MainHolder 统一管理
+    
+    _offlineCheckTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      _checkConnectivity();
+    });
+  }
+
+  String _getRelativeTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+    final absSeconds = difference.inSeconds.abs();
+    final absMinutes = difference.inMinutes.abs();
+    final absHours = difference.inHours.abs();
+    final absDays = difference.inDays.abs();
+
+    if (absSeconds < 60) {
+      return 'Just now';
+    } else if (absMinutes < 60) {
+      return '$absMinutes minute${absMinutes == 1 ? '' : 's'} ago';
+    } else if (absHours < 24) {
+      return '$absHours hour${absHours == 1 ? '' : 's'} ago';
+    } else if (absDays < 30) {
+      return '$absDays day${absDays == 1 ? '' : 's'} ago';
+    } else {
+      return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')}';
+    }
+  }
+
+  void _checkConnectivity() {
+    if (_lastDataUpdateTime != null) {
+      final now = DateTime.now();
+      final diff = now.difference(_lastDataUpdateTime!).inSeconds;
+      bool isConnected = (diff >= 0 && diff < 7);
+      
+      String updatedRelativeTime = _getRelativeTime(_lastDataUpdateTime!);
+
+      // 实时检测连接状态或时间文案变化，立刻刷新
+      if (HardwareStatusManager.isDhtConnected != isConnected || _lastRecordedTimeString != updatedRelativeTime) {
+        if (mounted) {
+          setState(() {
+            HardwareStatusManager.isDhtConnected = isConnected;
+            _lastRecordedTimeString = updatedRelativeTime; 
+          });
+        }
+      }
+    }
   }
 
   Future<void> _initData() async {
@@ -39,20 +90,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _fetchTotalCarbonFromDatabase() async {
     try {
       final supabase = Supabase.instance.client;
-      final response = await supabase
-          .from('eco_impact_history')
-          .select('saved_amount');
+      final response = await supabase.from('eco_impact_history').select('saved_amount');
 
       if (response != null && (response as List).isNotEmpty) {
         double total = 0.0;
         for (var item in response) {
           total += double.tryParse(item['saved_amount'].toString()) ?? 0.0;
         }
-        if (mounted) {
-          setState(() {
-            _carbonSaved = total;
-          });
-        }
+        if (mounted) setState(() => _carbonSaved = total);
       }
     } catch (e) {
       debugPrint('Database carbon fetch error: $e');
@@ -70,22 +115,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       if (response != null && (response as List).isNotEmpty) {
         final latest = response.first;
-        final lastRecordTimeStr = latest['recorded_at']?.toString();
+        final timeStr = latest['recorded_at']?.toString();
         
-        if (lastRecordTimeStr != null) {
-          DateTime lastTime = DateTime.parse(lastRecordTimeStr).toLocal();
-          if (DateTime.now().difference(lastTime).inSeconds < 15) {
-            if (mounted) {
-              setState(() {
-                _temperature = double.tryParse(latest['temperature']?.toString() ?? '');
-                _humidity = double.tryParse(latest['humidity']?.toString() ?? '');
-              });
-            }
+        if (timeStr != null) {
+          DateTime lastTime = DateTime.parse(timeStr.replaceAll('Z', '').replaceAll(RegExp(r'[+-]\d{2}:\d{2}$'), ''));
+          _lastDataUpdateTime = lastTime; 
+          
+          String relativeTime = _getRelativeTime(lastTime);
+          int diffSeconds = DateTime.now().difference(lastTime).inSeconds;
+          bool isOnline = (diffSeconds >= 0 && diffSeconds < 7);
+
+          if (mounted) {
+            setState(() {
+              _temperature = double.tryParse(latest['temperature']?.toString() ?? '');
+              _humidity = double.tryParse(latest['humidity']?.toString() ?? '');
+              _lastRecordedTimeString = relativeTime;
+              HardwareStatusManager.isDhtConnected = isOnline;
+              _isLoadingDHT = false; 
+            });
           }
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            HardwareStatusManager.isDhtConnected = false;
+            _isLoadingDHT = false; 
+          });
         }
       }
     } catch (e) {
       debugPrint('Fetch latest DHT error: $e');
+      if (mounted) {
+        setState(() {
+          HardwareStatusManager.isDhtConnected = false;
+          _isLoadingDHT = false; 
+        });
+      }
     }
   }
 
@@ -99,13 +164,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
           callback: (payload) {
             final data = payload.newRecord;
             if (data.isNotEmpty) {
-              double? newTemp = double.tryParse(data['temperature']?.toString() ?? '');
-              double? newHumidity = double.tryParse(data['humidity']?.toString() ?? '');
+              final timeStr = data['recorded_at']?.toString();
+              if (timeStr != null) {
+                _lastDataUpdateTime = DateTime.parse(timeStr.replaceAll('Z', '').replaceAll(RegExp(r'[+-]\d{2}:\d{2}$'), ''));
+              } else {
+                _lastDataUpdateTime = DateTime.now();
+              }
               
+              String relativeTime = _getRelativeTime(_lastDataUpdateTime!);
+
               if (mounted) {
                 setState(() {
-                  _temperature = newTemp;
-                  _humidity = newHumidity;
+                  _temperature = double.tryParse(data['temperature']?.toString() ?? '');
+                  _humidity = double.tryParse(data['humidity']?.toString() ?? '');
+                  _lastRecordedTimeString = relativeTime;
+                  HardwareStatusManager.isDhtConnected = true;
+                  _isLoadingDHT = false;
                 });
               }
             }
@@ -116,6 +190,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
+    _offlineCheckTimer?.cancel();
     if (_statusSubscription != null) {
       Supabase.instance.client.removeChannel(_statusSubscription!);
     }
@@ -130,9 +205,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     bool isAvatarLocal = UserProfileCache.avatarPath.isNotEmpty && (UserProfileCache.avatarPath.startsWith('/') || UserProfileCache.avatarPath.startsWith('file://'));
     bool avatarExists = isAvatarLocal && File(UserProfileCache.avatarPath).existsSync();
 
-    bool isDhtConnected = HardwareStatusManager.isDhtConnected;
-    String tempStr = (isDhtConnected && _temperature != null) ? '${_temperature!.toStringAsFixed(1)} °C' : '-- °C';
-    String humStr = (isDhtConnected && _humidity != null) ? '${_humidity!.toStringAsFixed(0)} %' : '-- %';
+    bool isConnected = HardwareStatusManager.isDhtConnected;
+
+    String tempStr = _isLoadingDHT ? 'loading' : (_temperature != null ? '${_temperature!.toStringAsFixed(1)} °C' : '-- °C');
+    String humStr = _isLoadingDHT ? 'loading' : (_humidity != null ? '${_humidity!.toStringAsFixed(0)} %' : '-- %');
 
     return Scaffold(
       backgroundColor: Colors.transparent, 
@@ -189,11 +265,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 14),
                   Row(
                     children: [
-                      Expanded(child: _miniCard('Temperature', tempStr, Icons.thermostat, Colors.orange)),
+                      Expanded(child: _miniCard('Temperature', tempStr, Icons.thermostat, Colors.orange, isConnected)),
                       const SizedBox(width: 12),
-                      Expanded(child: _miniCard('Humidity', humStr, Icons.water_drop_outlined, Colors.blue)),
+                      Expanded(child: _miniCard('Humidity', humStr, Icons.water_drop_outlined, Colors.blue, isConnected)),
                     ],
                   ),
+                  
+                  if (!isConnected && !_isLoadingDHT) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.orange),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _lastRecordedTimeString != null
+                                  ? 'Sensor Offline (Last recorded: $_lastRecordedTimeString)'
+                                  : 'Sensor Offline (Showing last recorded data)',
+                              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 14),
                   _buildCard(softIvoryWhite, Row(
                     children: [
@@ -289,25 +393,53 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _miniCard(String title, String value, IconData icon, Color iconColor) {
+  Widget _miniCard(String title, String value, IconData icon, Color iconColor, bool isConnected) {
+    bool isFetching = (value == 'loading');
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: const Color(0xFFF9FBFA), 
         borderRadius: BorderRadius.circular(16), 
-        border: Border.all(color: Colors.black12),
+        border: Border.all(color: isConnected ? Colors.black12 : Colors.orange.shade300),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6, offset: const Offset(0, 3))],
       ),
       child: Row(
         children: [
-          Icon(icon, color: iconColor, size: 22),
+          Icon(icon, color: isConnected ? iconColor : Colors.grey, size: 22),
           const SizedBox(width: 8),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 1),
-              Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
+              Row(
+                children: [
+                  Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 4),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isConnected ? Colors.green : Colors.orange,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              isFetching
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2C4A3E)),
+                    )
+                  : Text(
+                      value, 
+                      style: TextStyle(
+                        fontSize: 15, 
+                        fontWeight: FontWeight.bold, 
+                        color: isConnected ? Colors.black87 : Colors.black54,
+                      ),
+                    ),
             ],
           )
         ],

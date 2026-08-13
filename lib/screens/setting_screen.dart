@@ -78,6 +78,8 @@ class _SettingScreenState extends State<SettingScreen> {
   
   final AudioPlayer _audioPlayer = AudioPlayer();
 
+  late final VoidCallback _statusListener;
+
   @override
   void initState() {
     super.initState();
@@ -85,11 +87,19 @@ class _SettingScreenState extends State<SettingScreen> {
     _initNotifications();
 
     HardwareStatusManager.initNotifications(_notificationsPlugin);
+    
+    _statusListener = () {
+      if (mounted) setState(() {});
+    };
+
+    HardwareStatusManager.addListener(_statusListener);
+
     if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    HardwareStatusManager.removeListener(_statusListener);
     _pumpTimer?.cancel();
     _audioPlayer.dispose();
     super.dispose();
@@ -708,7 +718,6 @@ class _SettingScreenState extends State<SettingScreen> {
 
                 InkWell(
                   onTap: () async {
-                    // 登出时主动停止硬件监控并重置状态记忆，确保换账号登录时重新检测
                     HardwareStatusManager.stopMonitoring();
 
                     await Supabase.instance.client.auth.signOut();
