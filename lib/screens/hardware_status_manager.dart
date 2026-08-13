@@ -94,7 +94,6 @@ class HardwareStatusManager {
           piOnline = (diffSeconds >= -10 && diffSeconds <= 6); 
         }
       }
-
       // DHT11 也做同样的切除时差处理
       bool dhtOnline = false;
       try {
