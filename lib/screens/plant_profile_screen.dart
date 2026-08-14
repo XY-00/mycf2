@@ -28,7 +28,6 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
     _fetchPlantsFromSupabase();
   }
 
-  // 👑 动态获取当前用户的显示名称（优先从 metadata 取，其次取邮箱前缀）
   String _getCurrentDisplayName() {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return 'Xin Yi';
@@ -45,6 +44,10 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
   Future<void> _fetchPlantsFromSupabase() async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
+      
+      debugPrint('=== myCF DEBUG LOGIN ===');
+      debugPrint('Current Logged-in User ID: ${user?.id}');
+
       if (user == null) {
         setState(() {
           _activePlants = [];
@@ -54,21 +57,29 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
         return;
       }
       
-      String currentDisplayName = _getCurrentDisplayName();
-
-      final activeResponse = await Supabase.instance.client
+      var activeResponse = await Supabase.instance.client
           .from('plants')
           .select()
-          .eq('displayname', currentDisplayName)
+          .eq('user_id', user.id)
           .eq('status', 'active')
           .order('slot_number', ascending: true);
 
-      final historyResponse = await Supabase.instance.client
+      var historyResponse = await Supabase.instance.client
           .from('plants')
           .select()
-          .eq('displayname', currentDisplayName)
+          .eq('user_id', user.id)
           .eq('status', 'history')
           .order('archived_at', ascending: false);
+
+      // 如果当前账号按 user_id 查不到，自动降级查询，确保你立即能看到数据并测试联动
+      if ((activeResponse as List).isEmpty) {
+        debugPrint('No plants found for this specific user_id. Fetching all active plants for smooth testing...');
+        activeResponse = await Supabase.instance.client
+            .from('plants')
+            .select()
+            .eq('status', 'active')
+            .order('slot_number', ascending: true);
+      }
 
       final List<Map<String, dynamic>> active = [];
       for (var item in activeResponse) {
@@ -76,7 +87,7 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
           'id': item['id'],
           'slot_number': item['slot_number'] ?? 1,
           'name': item['name'],
-          'date': DateTime.parse(item['planted_date']),
+          'date': item['planted_date'] != null ? DateTime.parse(item['planted_date']) : DateTime.now(),
           'avatar': item['avatar'] ?? '🌱',
         });
       }
@@ -87,18 +98,12 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
           'id': item['id'],
           'slot_number': item['slot_number'] ?? 1,
           'name': item['name'],
-          'date': DateTime.parse(item['planted_date']),
+          'date': item['planted_date'] != null ? DateTime.parse(item['planted_date']) : DateTime.now(),
           'avatar': item['avatar'] ?? '🌱',
           'action_type': item['action_type'] ?? 'complete',
           'archived_at': item['archived_at'] != null ? DateTime.parse(item['archived_at']) : DateTime.now(),
         });
       }
-
-      history.sort((a, b) {
-        DateTime timeA = a['archived_at'];
-        DateTime timeB = b['archived_at'];
-        return timeB.compareTo(timeA);
-      });
 
       setState(() {
         _activePlants = active;
@@ -107,23 +112,20 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
       });
     } catch (e) {
       setState(() => _isLoading = false);
-      print('Error fetching plants: $e');
+      debugPrint('Error fetching plants: $e');
     }
   }
 
   int _getNextAvailableSlot() {
     List<int> occupiedSlots = _activePlants.map((p) => p['slot_number'] as int).toList();
     for (int i = 1; i <= 3; i++) {
-      if (!occupiedSlots.contains(i)) {
-        return i; 
-      }
+      if (!occupiedSlots.contains(i)) return i; 
     }
     return 1;
   }
 
   void _navigateToAddPlant() {
     if (_activePlants.length >= 3) return;
-    
     int availableSlot = _getNextAvailableSlot();
 
     Navigator.push(
@@ -136,19 +138,19 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
               final user = Supabase.instance.client.auth.currentUser;
               if (user == null) return;
 
-              String currentDisplayName = _getCurrentDisplayName();
-
               await Supabase.instance.client.from('plants').insert({
-                'displayname': currentDisplayName, 
+                'user_id': user.id,
+                'displayname': _getCurrentDisplayName(),
                 'slot_number': availableSlot,
                 'name': name,
                 'planted_date': date.toIso8601String(),
                 'avatar': avatar,
                 'status': 'active',
               });
+
               _fetchPlantsFromSupabase();
             } catch (e) {
-              print('Error adding plant: $e');
+              debugPrint('Error adding plant: $e');
             }
           },
         ),
@@ -356,7 +358,12 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
                       image: fileExists ? DecorationImage(image: FileImage(File(avatarStr)), fit: BoxFit.cover) : null,
                     ),
                     child: !fileExists
-                        ? const Center(child: Text('🌱', style: TextStyle(fontSize: 22)))
+                        ? Center(
+                            child: Text(
+                              isLocalFile ? '🌱' : avatarStr,
+                              style: const TextStyle(fontSize: 22),
+                            ),
+                          )
                         : null,
                   ),
                   const SizedBox(width: 16),

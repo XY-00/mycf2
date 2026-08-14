@@ -27,6 +27,10 @@ class _HistoryPlantDetailsScreenState extends State<HistoryPlantDetailsScreen> {
   late String _currentAvatar;
   late DateTime _archivedDate;
 
+  // 模拟该历史植物的真实快照记录（如果为空，则代表没有生长历史记录）
+  // 后续你可以根据数据库字段进行动态传入，这里预留空的或真实的判定
+  final List<Map<String, dynamic>> _growthSnapshots = []; 
+
   @override
   void initState() {
     super.initState();
@@ -39,27 +43,15 @@ class _HistoryPlantDetailsScreenState extends State<HistoryPlantDetailsScreen> {
   int get _calcDays => _archivedDate.difference(_currentDate).inDays;
 
   void _openGrowthHistoryGallery(BuildContext context) {
-    final Map<String, List<Map<String, dynamic>>> groupedSnapshots = {
-      '29 July 2026 (Archived Day)': [
-        {'time': '12:00 PM', 'moisture': 60, 'image': 'assets/analytic_plant.jpg'},
-        {'time': '11:30 AM', 'moisture': 59, 'image': 'assets/analytic_plant.jpg'},
-        {'time': '11:00 AM', 'moisture': 58, 'image': 'assets/analytic_plant.jpg'},
-      ],
-      '28 July 2026': [
-        {'time': '12:00 PM', 'moisture': 57, 'image': 'assets/analytic_plant.jpg'},
-        {'time': '10:00 AM', 'moisture': 55, 'image': 'assets/analytic_plant.jpg'},
-      ],
-    };
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFFF4F7F5),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.78,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.8,
         expand: false,
         builder: (context, scrollController) => Padding(
           padding: const EdgeInsets.all(20.0),
@@ -97,46 +89,17 @@ class _HistoryPlantDetailsScreenState extends State<HistoryPlantDetailsScreen> {
               const Divider(),
               const SizedBox(height: 8),
               Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  children: groupedSnapshots.entries.map((entry) {
-                    String dateKey = entry.key;
-                    List<Map<String, dynamic>> snapshots = entry.value;
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
-                          child: Text(
-                            dateKey,
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E)),
-                          ),
+                child: _growthSnapshots.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No growth history yet',
+                          style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold),
                         ),
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 1.1,
-                          ),
-                          itemCount: snapshots.length,
-                          itemBuilder: (context, index) {
-                            final item = snapshots[index];
-                            return _growthThumbnailWithMoisture(
-                              item['image'],
-                              item['moisture'],
-                              item['time'],
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                    );
-                  }).toList(),
-                ),
+                      )
+                    : ListView(
+                        controller: scrollController,
+                        children: const [],
+                      ),
               ),
             ],
           ),
@@ -243,14 +206,14 @@ class _HistoryPlantDetailsScreenState extends State<HistoryPlantDetailsScreen> {
                                     child: !fileExists
                                         ? Center(
                                             child: Text(
-                                              isLocalFile ? '🌱' : _currentAvatar, // 如果是表情符号（如 🌻 或 🌱）直接正确渲染出来
+                                              isLocalFile ? '🌱' : _currentAvatar,
                                               style: const TextStyle(fontSize: 26),
                                             ),
                                           )
                                         : null,
                                   ),
                                   const SizedBox(height: 6),
-                                  const Text('Moisture: 62%', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
+                                  const Text('Moisture: --%', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
                                 ],
                               ),
                               const SizedBox(width: 16),
@@ -320,39 +283,43 @@ class _HistoryPlantDetailsScreenState extends State<HistoryPlantDetailsScreen> {
                         ),
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(14),
+                          padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: unifiedCardBg,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(color: Colors.black12),
                             boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6)],
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(child: _growthThumbnailWithMoisture('assets/analytic_plant.jpg', 60, '12:00 PM')),
-                                  const SizedBox(width: 8),
-                                  Expanded(child: _growthThumbnailWithMoisture('assets/analytic_plant.jpg', 55, '12:00 PM')),
-                                  const SizedBox(width: 8),
-                                  Expanded(child: _growthThumbnailWithMoisture('assets/analytic_plant.jpg', 62, '12:00 PM')),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: GestureDetector(
-                                  onTap: () => _openGrowthHistoryGallery(context),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.black12)),
-                                    child: const Text('View all', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
-                                  ),
+                          child: _growthSnapshots.isEmpty
+                              ? Column(
+                                  children: const [
+                                    Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.symmetric(vertical: 12.0),
+                                        child: Text(
+                                          'No growth history yet',
+                                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: GestureDetector(
+                                        onTap: () => _openGrowthHistoryGallery(context),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.black12)),
+                                          child: const Text('View all', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                            ],
-                          ),
                         ),
                         const SizedBox(height: 30),
                       ],
@@ -388,53 +355,6 @@ class _HistoryPlantDetailsScreenState extends State<HistoryPlantDetailsScreen> {
           ),
           Text(desc, style: TextStyle(fontSize: 7.5, color: textColor.withOpacity(0.85), height: 1.15), maxLines: 3, overflow: TextOverflow.visible),
         ],
-      ),
-    );
-  }
-
-  Widget _growthThumbnailWithMoisture(String assetPath, int moisturePercent, String timeString) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        height: 75,
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.black12),
-          image: DecorationImage(
-            image: AssetImage(assetPath),
-            fit: BoxFit.cover,
-          ),
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              top: 4,
-              left: 4,
-              child: Text(
-                timeString,
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 4,
-              right: 4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2C4A3E).withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  '$moisturePercent%',
-                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

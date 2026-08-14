@@ -13,6 +13,9 @@ class HardwareStatusManager {
   static FlutterLocalNotificationsPlugin? _notificationsPlugin;
   static bool _isInitialized = false;
   
+  // 记录各个植物槽位上一次是否已经弹过湿度警报，防止重复轰炸
+  static final Map<int, bool> _plantAlertLocks = {};
+
   static final List<VoidCallback> _listeners = [];
 
   static void initNotifications(FlutterLocalNotificationsPlugin plugin) {
@@ -27,7 +30,7 @@ class HardwareStatusManager {
     if (_isInitialized) return;
     _isInitialized = true;
 
-    debugPrint('HardwareStatusManager: Monitoring started successfully!');
+    debugPrint('HardwareStatusManager: Global monitoring started successfully!');
     _lastPiStatus = null; 
     checkHardwareConnection();
 
@@ -52,6 +55,15 @@ class HardwareStatusManager {
     _statusCheckTimer = null;
     _isInitialized = false;
     _listeners.clear();
+    
+    // 👑 彻底重置所有连接状态并清空警报锁
+    isPiConnected = false;
+    isDhtConnected = false;
+    isFloatConnected = false;
+    _lastPiStatus = null;
+    _plantAlertLocks.clear();
+    _notifyListeners();
+    debugPrint('HardwareStatusManager: Monitoring stopped and fully reset.');
   }
 
   static void _notifyListeners() {
@@ -64,6 +76,7 @@ class HardwareStatusManager {
     try {
       final supabase = Supabase.instance.client;
       
+      // 1. 检查树莓派主心跳
       final piResponse = await supabase
           .from('raspberry_pi_status')
           .select('last_seen')
@@ -75,26 +88,14 @@ class HardwareStatusManager {
       if (piResponse != null && (piResponse as List).isNotEmpty) {
         final lastSeenStr = piResponse.first['last_seen']?.toString();
         if (lastSeenStr != null) {
-          // 👑 终极核心修复：切掉 Supabase 强加的 "+00" 时区尾巴
-          // 把 "2026-08-13 20:16:45+00" 变成干净的 "2026-08-13 20:16:45"
-          String rawTime = lastSeenStr;
-          if (rawTime.contains('+')) {
-            rawTime = rawTime.split('+')[0];
-          } else if (rawTime.endsWith('Z')) {
-            rawTime = rawTime.replaceAll('Z', '');
-          }
-
-          // 这样 Flutter 就会把它当做和手机一模一样的本地时间
+          String rawTime = lastSeenStr.contains('+') ? lastSeenStr.split('+')[0] : lastSeenStr.replaceAll('Z', '');
           DateTime piLastTimeLocal = DateTime.parse(rawTime);
           int diffSeconds = DateTime.now().difference(piLastTimeLocal).inSeconds;
-          
-          debugPrint('Pi LastSeen (Clean Local): $piLastTimeLocal, Now: ${DateTime.now()}, Diff: $diffSeconds');
-          
-          // 树莓派每 2 秒发一次。误差允许 -10秒 到 6秒。超过 6 秒即判定关机离线！
-          piOnline = (diffSeconds >= -10 && diffSeconds <= 6); 
+          piOnline = (diffSeconds >= -20 && diffSeconds <= 10); 
         }
       }
-      // DHT11 也做同样的切除时差处理
+
+      // 2. 检查 DHT11 传感器状态
       bool dhtOnline = false;
       try {
         final dhtResponse = await supabase
@@ -107,85 +108,92 @@ class HardwareStatusManager {
         if (dhtResponse != null && (dhtResponse as List).isNotEmpty) {
           final recordedStr = dhtResponse.first['recorded_at']?.toString();
           if (recordedStr != null) {
-            String rawDhtTime = recordedStr;
-            if (rawDhtTime.contains('+')) rawDhtTime = rawDhtTime.split('+')[0];
-            else if (rawDhtTime.endsWith('Z')) rawDhtTime = rawDhtTime.replaceAll('Z', '');
-
+            String rawDhtTime = recordedStr.contains('+') ? recordedStr.split('+')[0] : recordedStr.replaceAll('Z', '');
             DateTime dhtLastTimeLocal = DateTime.parse(rawDhtTime);
             int dhtDiff = DateTime.now().difference(dhtLastTimeLocal).inSeconds;
-            dhtOnline = (dhtDiff >= -10 && dhtDiff <= 7);
+            dhtOnline = (dhtDiff >= -20 && dhtDiff <= 10);
           }
         }
       } catch (e) {
         dhtOnline = false;
       }
 
-      // 👑 完美逻辑控制：
+      // 3. 全局后台常驻检查：树莓派在线且任意植物湿度跌到 59% 以下，发横幅通知
+      if (piOnline) {
+        try {
+          final hardwareResponse = await supabase
+              .from('hardware_status')
+              .select('slot_number, moisture_level, sensor_connected');
+
+          if (hardwareResponse != null) {
+            for (var item in hardwareResponse) {
+              int slot = item['slot_number'] ?? 1;
+              double moisture = (item['moisture_level'] ?? 0.0).toDouble();
+              bool sensorConn = item['sensor_connected'] ?? false;
+
+              if (sensorConn && moisture <= 59.0) {
+                if (_plantAlertLocks[slot] != true) {
+                  _plantAlertLocks[slot] = true; 
+                  _sendSystemPushNotification(
+                    'SOIL MOISTURE EXCEPTION',
+                    'Plant Slot $slot soil moisture dropped to ${moisture.toStringAsFixed(1)}%! Please check if the sensor is properly inserted in soil.'
+                  );
+                }
+              } else if (moisture > 60.0) {
+                _plantAlertLocks[slot] = false; 
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Background plant moisture check error: $e');
+        }
+      }
+
+      // 4. 树莓派上下线通知判定
       if (_lastPiStatus == null) {
-        // 【1. 登录瞬间（第一次检查）】
         _lastPiStatus = piOnline;
         if (piOnline) {
-          // 需求：如果 login 时已经开机了，就直接出弹窗
-          _sendNotification(
-            'myCF Connected', 
-            'System successfully connected to myCF (Raspberry Pi is online).'
-          );
+          _sendSystemPushNotification('myCF Connected', 'System successfully connected to myCF (Raspberry Pi is online).');
         }
-        // 需求：如果没有开机，就不需要弹窗（静默过去，直接变 Unconnected）
-        debugPrint('Initial Pi Status initialized. Is Online: $piOnline');
       } else {
-        // 【2. 运行过程中的状态改变】
         if (piOnline != _lastPiStatus) {
           _lastPiStatus = piOnline;
           if (piOnline) {
-            _sendNotification(
-              'myCF Connected', 
-              'System successfully connected to myCF (Raspberry Pi is online).'
-            );
+            _sendSystemPushNotification('myCF Connected', 'System successfully connected to myCF (Raspberry Pi is online).');
           } else {
-            // 需求：如果关机了，大概 5~6 秒这样就会因为超时跳到这里，弹出关机信息！
-            _sendNotification(
-              'CRITICAL WARNING: myCF OFF', 
-              'Cannot connect to myCF! Raspberry Pi is offline or powered off.'
-            );
+            _sendSystemPushNotification('CRITICAL WARNING: myCF OFF', 'Cannot connect to myCF! Raspberry Pi is offline or powered off.');
           }
         }
       }
 
       isPiConnected = piOnline;
-      isDhtConnected = dhtOnline; 
+      isDhtConnected = dhtOnline;
       isFloatConnected = false; 
-
       _notifyListeners();
       
     } catch (e) {
-      debugPrint('Hardware connection check error or timeout: $e');
+      debugPrint('Hardware connection check error: $e');
       if (_lastPiStatus != null && _lastPiStatus != false) {
         _lastPiStatus = false;
-        _sendNotification(
-          'CRITICAL WARNING: myCF OFF', 
-          'Connection error! myCF is offline.'
-        );
+        _sendSystemPushNotification('CRITICAL WARNING: myCF OFF', 'Connection error! myCF is offline.');
       }
-      _lastPiStatus = false;
       isPiConnected = false;
       isDhtConnected = false;
       isFloatConnected = false;
-      
       _notifyListeners();
     }
   }
 
-  static Future<void> _sendNotification(String title, String body) async {
+  static Future<void> _sendSystemPushNotification(String title, String body) async {
     if (_notificationsPlugin == null) return;
 
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'mycf_hardware_channel_id',
-      'myCF Hardware Status Alerts',
-      channelDescription: 'Notifications for Raspberry Pi connection changes',
+      'myCF Hardware Status & Plant Alerts',
+      channelDescription: 'Notifications for Raspberry Pi and Plant exceptions',
       importance: Importance.max,
       priority: Priority.high,
-      ticker: 'myCF Hardware Alert',
+      ticker: 'myCF Alert',
       icon: '@mipmap/ic_launcher',
       enableVibration: true,
       playSound: true,
@@ -198,13 +206,11 @@ class HardwareStatusManager {
       ),
     );
 
-    final notificationDetails = NotificationDetails(android: androidDetails);
-
     await _notificationsPlugin!.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title,
       body,
-      notificationDetails,
+      NotificationDetails(android: androidDetails),
     );
   }
 
@@ -215,11 +221,7 @@ class HardwareStatusManager {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Expanded(
-            child: Text(
-              title, 
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87), 
-              overflow: TextOverflow.ellipsis,
-            ),
+            child: Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87), overflow: TextOverflow.ellipsis),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

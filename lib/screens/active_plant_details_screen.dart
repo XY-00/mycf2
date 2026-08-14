@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -30,7 +31,12 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
 
   bool _isSensorConnected = false;
   bool _isPumpConnected = false;
+  double _moistureLevel = 0.0;
   bool _isCheckingHardware = true;
+  
+  final List<Map<String, dynamic>> _growthSnapshots = []; 
+
+  Timer? _pollingTimer;
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -39,10 +45,21 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
     _currentName = widget.initialName;
     _currentDate = widget.initialDate;
     _currentAvatar = widget.initialAvatar;
-    _fetchHardwareStatus();
+    
+    _fetchHardwareAndMoistureStatus();
+
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      _fetchHardwareAndMoistureStatus();
+    });
   }
 
-  Future<void> _fetchHardwareStatus() async {
+  @override
+  void dispose() {
+    _pollingTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _fetchHardwareAndMoistureStatus() async {
     try {
       int slotNumber = widget.slotIndex + 1;
       final response = await Supabase.instance.client
@@ -51,17 +68,37 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
           .eq('slot_number', slotNumber)
           .maybeSingle();
 
-      if (response != null) {
+      if (response != null && mounted) {
+        bool sensorConn = response['sensor_connected'] ?? false;
+        bool pumpConn = response['pump_connected'] ?? false;
+        double moisture = (response['moisture_level'] ?? 0.0).toDouble();
+
+        final updatedAtStr = response['updated_at']?.toString();
+        if (updatedAtStr != null && sensorConn) {
+          String rawTime = updatedAtStr.contains('+') ? updatedAtStr.split('+')[0] : updatedAtStr.replaceAll('Z', '');
+          DateTime updatedTime = DateTime.parse(rawTime);
+          int diff = DateTime.now().difference(updatedTime).inSeconds;
+          // 👑 放宽至 15 秒判定，防止网络延迟导致的误判为 Unconnected
+          if (diff > 15) {
+            sensorConn = false;
+            pumpConn = false;
+          }
+        } else {
+          sensorConn = false;
+          pumpConn = false;
+        }
+
         setState(() {
-          _isSensorConnected = response['sensor_connected'] ?? false;
-          _isPumpConnected = response['pump_connected'] ?? false;
+          _isSensorConnected = sensorConn;
+          _isPumpConnected = pumpConn;
+          _moistureLevel = moisture;
           _isCheckingHardware = false;
         });
       } else {
-        setState(() => _isCheckingHardware = false);
+        if (mounted) setState(() => _isCheckingHardware = false);
       }
     } catch (e) {
-      setState(() => _isCheckingHardware = false);
+      if (mounted) setState(() => _isCheckingHardware = false);
       print('Error fetching hardware status: $e');
     }
   }
@@ -240,23 +277,15 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
   }
 
   void _openGrowthHistoryGallery(BuildContext context) {
-    final Map<String, List<Map<String, dynamic>>> groupedSnapshots = {
-      'Today, 29 July 2026': [
-        {'time': '12:00 PM', 'moisture': 64, 'image': 'assets/analytic_plant.jpg'},
-        {'time': '11:30 AM', 'moisture': 63, 'image': 'assets/analytic_plant.jpg'},
-        {'time': '11:00 AM', 'moisture': 62, 'image': 'assets/analytic_plant.jpg'},
-      ],
-    };
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFFF4F7F5),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.78,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.8,
         expand: false,
         builder: (context, scrollController) => Padding(
           padding: const EdgeInsets.all(20.0),
@@ -282,35 +311,14 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
               const Divider(),
               const SizedBox(height: 8),
               Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  children: groupedSnapshots.entries.map((entry) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
-                          child: Text(entry.key, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
+                child: _growthSnapshots.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No growth history yet',
+                          style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold),
                         ),
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 1.1,
-                          ),
-                          itemCount: entry.value.length,
-                          itemBuilder: (context, index) {
-                            final item = entry.value[index];
-                            return _growthThumbnailWithMoisture(item['image'], item['moisture'], item['time']);
-                          },
-                        ),
-                      ],
-                    );
-                  }).toList(),
-                ),
+                      )
+                    : ListView(controller: scrollController, children: const []),
               ),
             ],
           ),
@@ -508,7 +516,23 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
                                         : null,
                                   ),
                                   const SizedBox(height: 6),
-                                  const Text('Moisture: 62%', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
+                                  Column(
+                                    children: [
+                                      Text(
+                                        'Moisture: ${_moistureLevel.toStringAsFixed(1)}%', 
+                                        style: TextStyle(
+                                          fontSize: 11, 
+                                          fontWeight: FontWeight.bold, 
+                                          color: _moistureLevel <= 59.0 ? Colors.red : (_moistureLevel < 63.0 ? Colors.orange : Colors.green),
+                                        ),
+                                      ),
+                                      if (!_isSensorConnected)
+                                        const Text(
+                                          '(Last Record)', 
+                                          style: TextStyle(fontSize: 8, color: Colors.grey, fontStyle: FontStyle.italic),
+                                        ),
+                                    ],
+                                  ),
                                 ],
                               ),
                               const SizedBox(width: 16),
@@ -578,39 +602,43 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
                         ),
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(14),
+                          padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: unifiedCardBg,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(color: Colors.black12),
                             boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6)],
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(child: _growthThumbnailWithMoisture('assets/analytic_plant.jpg', 62, '12:00 PM')),
-                                  const SizedBox(width: 8),
-                                  Expanded(child: _growthThumbnailWithMoisture('assets/analytic_plant.jpg', 58, '12:00 PM')),
-                                  const SizedBox(width: 8),
-                                  Expanded(child: _growthThumbnailWithMoisture('assets/analytic_plant.jpg', 65, '12:00 PM')),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: GestureDetector(
-                                  onTap: () => _openGrowthHistoryGallery(context),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.black12)),
-                                    child: const Text('View all', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
-                                  ),
+                          child: _growthSnapshots.isEmpty
+                              ? Column(
+                                  children: const [
+                                    Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.symmetric(vertical: 12.0),
+                                        child: Text(
+                                          'No growth history yet',
+                                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: GestureDetector(
+                                        onTap: () => _openGrowthHistoryGallery(context),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.black12)),
+                                          child: const Text('View all', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                            ],
-                          ),
                         ),
                         const SizedBox(height: 30),
                         Center(
@@ -666,37 +694,6 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
           ),
           Text(desc, style: TextStyle(fontSize: 7.5, color: textColor.withOpacity(0.85), height: 1.15), maxLines: 3, overflow: TextOverflow.visible),
         ],
-      ),
-    );
-  }
-
-  Widget _growthThumbnailWithMoisture(String assetPath, int moisturePercent, String timeString) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        height: 75,
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.black12),
-          image: DecorationImage(image: AssetImage(assetPath), fit: BoxFit.cover),
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              top: 4,
-              left: 4,
-              child: Text(timeString, style: const TextStyle(color: Colors.black87, fontSize: 9.5, fontWeight: FontWeight.bold)),
-            ),
-            Positioned(
-              bottom: 4,
-              right: 4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                decoration: BoxDecoration(color: const Color(0xFF2C4A3E).withOpacity(0.9), borderRadius: BorderRadius.circular(6)),
-                child: Text('$moisturePercent%', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
