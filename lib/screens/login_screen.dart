@@ -36,6 +36,19 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (response.user != null && mounted) {
+        // 👑 关键：登录成功后，将系统开关设为 true，并把当前真实登录的 user.id 写入数据库
+        try {
+          await Supabase.instance.client
+              .from('system_control')
+              .update({
+                'is_running': true,
+                'current_user_id': response.user!.id,
+              })
+              .eq('id', 1);
+        } catch (e) {
+          debugPrint('Failed to update system_control on login: $e');
+        }
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const MainHolder()),
@@ -94,7 +107,6 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 120), 
-                // 👑 删除了白色卡片背景和白边，将 Logo 直接裁剪为纯圆形
                 Center(
                   child: ClipOval(
                     child: Image.asset(

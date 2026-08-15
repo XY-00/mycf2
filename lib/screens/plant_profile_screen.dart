@@ -57,6 +57,7 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
         return;
       }
       
+      // 👑 严格按当前登录用户的 user_id 查询，绝不降级、绝不偷看其他账号的植物！
       var activeResponse = await Supabase.instance.client
           .from('plants')
           .select()
@@ -70,16 +71,6 @@ class _PlantProfileScreenState extends State<PlantProfileScreen> with AutomaticK
           .eq('user_id', user.id)
           .eq('status', 'history')
           .order('archived_at', ascending: false);
-
-      // 如果当前账号按 user_id 查不到，自动降级查询，确保你立即能看到数据并测试联动
-      if ((activeResponse as List).isEmpty) {
-        debugPrint('No plants found for this specific user_id. Fetching all active plants for smooth testing...');
-        activeResponse = await Supabase.instance.client
-            .from('plants')
-            .select()
-            .eq('status', 'active')
-            .order('slot_number', ascending: true);
-      }
 
       final List<Map<String, dynamic>> active = [];
       for (var item in activeResponse) {

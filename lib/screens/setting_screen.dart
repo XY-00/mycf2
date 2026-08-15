@@ -718,6 +718,19 @@ class _SettingScreenState extends State<SettingScreen> {
 
                 InkWell(
                   onTap: () async {
+                    // 👑 关键修改：点击 LOG OUT 时，将系统开关设为 false，并清空当前登录的 user_id
+                    try {
+                      await Supabase.instance.client
+                          .from('system_control')
+                          .update({
+                            'is_running': false,
+                            'current_user_id': null,
+                          })
+                          .eq('id', 1);
+                    } catch (e) {
+                      debugPrint('Failed to update system_control on logout: $e');
+                    }
+
                     HardwareStatusManager.stopMonitoring();
 
                     await Supabase.instance.client.auth.signOut();

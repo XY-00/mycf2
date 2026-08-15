@@ -75,6 +75,15 @@ class HardwareStatusManager {
   static Future<void> checkHardwareConnection() async {
     try {
       final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      
+      // 如果未登录，不执行任何硬件状态和警报检查
+      if (user == null) {
+        isPiConnected = false;
+        isDhtConnected = false;
+        _notifyListeners();
+        return;
+      }
       
       // 1. 检查树莓派主心跳
       final piResponse = await supabase
@@ -118,29 +127,50 @@ class HardwareStatusManager {
         dhtOnline = false;
       }
 
-      // 3. 全局后台常驻检查：树莓派在线且任意植物湿度跌到 59% 以下，发横幅通知
+      // 3. 👑 核心修复：只获取当前用户真正拥有的 active 植物槽位！
       if (piOnline) {
         try {
-          final hardwareResponse = await supabase
-              .from('hardware_status')
-              .select('slot_number, moisture_level, sensor_connected');
+          final userPlantsResponse = await supabase
+              .from('plants')
+              .select('slot_number')
+              .eq('user_id', user.id)
+              .eq('status', 'active');
 
-          if (hardwareResponse != null) {
-            for (var item in hardwareResponse) {
-              int slot = item['slot_number'] ?? 1;
-              double moisture = (item['moisture_level'] ?? 0.0).toDouble();
-              bool sensorConn = item['sensor_connected'] ?? false;
+          final Set<int> myActiveSlots = {};
+          if (userPlantsResponse != null) {
+            for (var p in userPlantsResponse) {
+              if (p['slot_number'] != null) {
+                myActiveSlots.add(p['slot_number'] as int);
+              }
+            }
+          }
 
-              if (sensorConn && moisture <= 59.0) {
-                if (_plantAlertLocks[slot] != true) {
-                  _plantAlertLocks[slot] = true; 
-                  _sendSystemPushNotification(
-                    'SOIL MOISTURE EXCEPTION',
-                    'Plant Slot $slot soil moisture dropped to ${moisture.toStringAsFixed(1)}%! Please check if the sensor is properly inserted in soil.'
-                  );
+          // 如果用户当前有活跃植物，仅查询属于该用户的 hardware_status
+          if (myActiveSlots.isNotEmpty) {
+            final hardwareResponse = await supabase
+                .from('hardware_status')
+                .select('slot_number, moisture_level, sensor_connected')
+                .eq('user_id', user.id);
+
+            if (hardwareResponse != null) {
+              for (var item in hardwareResponse) {
+                int slot = item['slot_number'] ?? 1;
+                double moisture = (item['moisture_level'] ?? 0.0).toDouble();
+                bool sensorConn = item['sensor_connected'] ?? false;
+
+                // 👑 双重拦截：只有当前用户拥有的槽位 + 传感器在线 + 湿度低于 59% 才报警
+                if (myActiveSlots.contains(slot) && sensorConn && moisture <= 59.0) {
+                  if (_plantAlertLocks[slot] != true) {
+                    _plantAlertLocks[slot] = true; 
+                    _sendSystemPushNotification(
+                      100 + slot, // 使用固定通知 ID，绝不重复刷屏
+                      'SOIL MOISTURE EXCEPTION',
+                      'Plant Slot $slot soil moisture dropped to ${moisture.toStringAsFixed(1)}%! Please check if the sensor is properly inserted in soil.'
+                    );
+                  }
+                } else if (moisture > 60.0 || !myActiveSlots.contains(slot) || !sensorConn) {
+                  _plantAlertLocks[slot] = false; 
                 }
-              } else if (moisture > 60.0) {
-                _plantAlertLocks[slot] = false; 
               }
             }
           }
@@ -153,15 +183,15 @@ class HardwareStatusManager {
       if (_lastPiStatus == null) {
         _lastPiStatus = piOnline;
         if (piOnline) {
-          _sendSystemPushNotification('myCF Connected', 'System successfully connected to myCF (Raspberry Pi is online).');
+          _sendSystemPushNotification(1, 'myCF Connected', 'System successfully connected to myCF (Raspberry Pi is online).');
         }
       } else {
         if (piOnline != _lastPiStatus) {
           _lastPiStatus = piOnline;
           if (piOnline) {
-            _sendSystemPushNotification('myCF Connected', 'System successfully connected to myCF (Raspberry Pi is online).');
+            _sendSystemPushNotification(1, 'myCF Connected', 'System successfully connected to myCF (Raspberry Pi is online).');
           } else {
-            _sendSystemPushNotification('CRITICAL WARNING: myCF OFF', 'Cannot connect to myCF! Raspberry Pi is offline or powered off.');
+            _sendSystemPushNotification(2, 'CRITICAL WARNING: myCF OFF', 'Cannot connect to myCF! Raspberry Pi is offline or powered off.');
           }
         }
       }
@@ -175,7 +205,7 @@ class HardwareStatusManager {
       debugPrint('Hardware connection check error: $e');
       if (_lastPiStatus != null && _lastPiStatus != false) {
         _lastPiStatus = false;
-        _sendSystemPushNotification('CRITICAL WARNING: myCF OFF', 'Connection error! myCF is offline.');
+        _sendSystemPushNotification(2, 'CRITICAL WARNING: myCF OFF', 'Connection error! myCF is offline.');
       }
       isPiConnected = false;
       isDhtConnected = false;
@@ -184,7 +214,7 @@ class HardwareStatusManager {
     }
   }
 
-  static Future<void> _sendSystemPushNotification(String title, String body) async {
+  static Future<void> _sendSystemPushNotification(int notificationId, String title, String body) async {
     if (_notificationsPlugin == null) return;
 
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
@@ -207,7 +237,7 @@ class HardwareStatusManager {
     );
 
     await _notificationsPlugin!.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      notificationId, // 👑 使用固定 ID 避免无休止生成多条横幅
       title,
       body,
       NotificationDetails(android: androidDetails),

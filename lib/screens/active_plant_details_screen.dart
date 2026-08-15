@@ -61,32 +61,23 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
 
   Future<void> _fetchHardwareAndMoistureStatus() async {
     try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+
       int slotNumber = widget.slotIndex + 1;
+      
+      // 👑 严格按当前登录用户的 user_id 和 slot_number 联合查询，确保多账号数据绝对隔离
       final response = await Supabase.instance.client
           .from('hardware_status')
           .select()
           .eq('slot_number', slotNumber)
+          .eq('user_id', user.id)
           .maybeSingle();
 
       if (response != null && mounted) {
         bool sensorConn = response['sensor_connected'] ?? false;
         bool pumpConn = response['pump_connected'] ?? false;
         double moisture = (response['moisture_level'] ?? 0.0).toDouble();
-
-        final updatedAtStr = response['updated_at']?.toString();
-        if (updatedAtStr != null && sensorConn) {
-          String rawTime = updatedAtStr.contains('+') ? updatedAtStr.split('+')[0] : updatedAtStr.replaceAll('Z', '');
-          DateTime updatedTime = DateTime.parse(rawTime);
-          int diff = DateTime.now().difference(updatedTime).inSeconds;
-          // 👑 放宽至 15 秒判定，防止网络延迟导致的误判为 Unconnected
-          if (diff > 15) {
-            sensorConn = false;
-            pumpConn = false;
-          }
-        } else {
-          sensorConn = false;
-          pumpConn = false;
-        }
 
         setState(() {
           _isSensorConnected = sensorConn;
@@ -95,7 +86,13 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
           _isCheckingHardware = false;
         });
       } else {
-        if (mounted) setState(() => _isCheckingHardware = false);
+        if (mounted) {
+          setState(() {
+            _isSensorConnected = false;
+            _moistureLevel = 0.0;
+            _isCheckingHardware = false;
+          });
+        }
       }
     } catch (e) {
       if (mounted) setState(() => _isCheckingHardware = false);
@@ -518,13 +515,26 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
                                   const SizedBox(height: 6),
                                   Column(
                                     children: [
-                                      Text(
-                                        'Moisture: ${_moistureLevel.toStringAsFixed(1)}%', 
-                                        style: TextStyle(
-                                          fontSize: 11, 
-                                          fontWeight: FontWeight.bold, 
-                                          color: _moistureLevel <= 59.0 ? Colors.red : (_moistureLevel < 63.0 ? Colors.orange : Colors.green),
-                                        ),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Text(
+                                            'Moisture: ', 
+                                            style: TextStyle(
+                                              fontSize: 11, 
+                                              fontWeight: FontWeight.bold, 
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                          Text(
+                                            '${_moistureLevel.toStringAsFixed(1)}%', 
+                                            style: TextStyle(
+                                              fontSize: 11, 
+                                              fontWeight: FontWeight.bold, 
+                                              color: _moistureLevel <= 59.0 ? Colors.red : (_moistureLevel < 63.0 ? Colors.orange : Colors.green),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                       if (!_isSensorConnected)
                                         const Text(
