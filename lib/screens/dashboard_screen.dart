@@ -19,7 +19,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAliveClientMixin {
   @override
-  bool get wantKeepAlive => true; // 👑 保持页面滚动位置，切走再回来不用重新划
+  bool get wantKeepAlive => true; // 👑 保持页面滚动位置
 
   double _carbonSaved = 0.0;
   double _moisture = 62.9;
@@ -33,7 +33,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   
   bool _isWaterLevelNormal = true;
   double _waterPercentage = 0.0;
-  bool _hasTriggeredWaterAlert = false; // 👑 防止水箱空时重复触发警报
   
   Timer? _offlineCheckTimer;
   DateTime? _lastDataUpdateTime;
@@ -116,14 +115,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
           _isWaterLevelNormal = isNormal;
           _waterPercentage = pct;
         });
-
-        // 👑 如果初始化时水箱就是空的，触发警报
-        if (!isNormal && !_hasTriggeredWaterAlert) {
-          _hasTriggeredWaterAlert = true;
-          HardwareStatusManager.triggerTankEmptyAlert();
-        } else if (isNormal) {
-          _hasTriggeredWaterAlert = false;
-        }
       }
     } catch (e) {
       debugPrint('Fetch water tank status error: $e');
@@ -238,7 +229,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         )
         .subscribe();
 
-    // 👑 实时监听 system_control 表水箱变化，直接在当前页面实时更新，无需反复切换
     _systemControlSubscription = Supabase.instance.client
         .channel('public:system_control_water_channel')
         .onPostgresChanges(
@@ -255,14 +245,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
                 _isWaterLevelNormal = isNormal;
                 _waterPercentage = pct;
               });
-
-              // 👑 当水位降到 0% 时，触发横幅通知与警报声
-              if (!isNormal && !_hasTriggeredWaterAlert) {
-                _hasTriggeredWaterAlert = true;
-                HardwareStatusManager.triggerTankEmptyAlert();
-              } else if (isNormal) {
-                _hasTriggeredWaterAlert = false;
-              }
             }
           },
         )
@@ -283,7 +265,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // 必须保留以支持 KeepAlive
+    super.build(context); // 👑 必须保留以支持 KeepAlive 滚动位置记忆
     const Color primaryDarkGreen = Color(0xFF2C4A3E); 
     const Color softIvoryWhite = Color(0xFFF9FBFA);
 

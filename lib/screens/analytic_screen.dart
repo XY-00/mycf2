@@ -10,8 +10,11 @@ class AnalyticScreen extends StatefulWidget {
   State<AnalyticScreen> createState() => _AnalyticScreenState();
 }
 
-class _AnalyticScreenState extends State<AnalyticScreen> {
-  int _selectedPlantTab = 0; // 0: All Plants, 或者具体的 slot 编号
+class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true; // 👑 保持页面滚动位置
+
+  int _selectedPlantTab = 0; 
   bool _isLoading = true;
 
   List<int> _activeSlots = []; 
@@ -62,7 +65,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
 
       String currentDisplayName = _getCurrentDisplayName();
 
-      // 👑 1. 核心：直接从 plants 表查询当前用户的 active 植物（与 Plant Profile 完全同步）
       final plantsResponse = await Supabase.instance.client
           .from('plants')
           .select('slot_number')
@@ -80,7 +82,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
         }
       }
 
-      // 如果该账号没有任何 active 植物，直接展示精美空白卡片
       if (detectedSlots.isEmpty) {
         setState(() {
           _activeSlots = [];
@@ -93,7 +94,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
         _selectedPlantTab = 0;
       }
 
-      // 2. 尝试从 sensor_logs 拉取数据（即使为空也绝不让页面崩溃变空）
       try {
         var sensorQuery = Supabase.instance.client
             .from('sensor_logs')
@@ -126,7 +126,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
             if (slot == 3) p3.add(val);
           }
         } else {
-          // 如果 sensor_logs 是空的，给图表赋予默认的平稳初始化数据，保证 UI 美观不报错
           setState(() {
             _currentMoisture = 60;
             _leafStatus = 'Normal';
@@ -146,7 +145,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
         print('Sensor logs fetch skipped or empty: $e');
       }
 
-      // 3. 拉取相机快照
       try {
         final snapshotResponse = await Supabase.instance.client
             .from('camera_snapshots')
@@ -165,7 +163,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
         }
       } catch (_) {}
 
-      // 4. 拉取干预日志数量
       try {
         final interventionResponse = await Supabase.instance.client
             .from('intervention_logs')
@@ -199,6 +196,7 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // 👑 必须保留以支持 KeepAlive 滚动位置记忆
     const Color primaryDarkGreen = Color(0xFF2C4A3E); 
 
     return Scaffold(
@@ -232,7 +230,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
                   ),
                   const SizedBox(height: 14),
                   
-                  // 👑 动态 Tab 按钮
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20.0),
                     child: Row(
@@ -244,7 +241,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
                   ),
                   const SizedBox(height: 10),
                   
-                  // 1. LIVE CAMERA 模块
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20.0),
                     child: Column(
@@ -323,7 +319,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
                   ),
                   const SizedBox(height: 6),
                   
-                  // 2. Visual Health Validation 模块
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20.0),
                     child: Column(
@@ -365,7 +360,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
                   ),
                   const SizedBox(height: 6),
                   
-                  // 3. 24-Hour Moisture Trend 模块
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20.0),
                     child: Column(
@@ -384,7 +378,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
                   ),
                   const SizedBox(height: 6),
                   
-                  // 4. Carbon Protection 模块
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20.0),
                     child: Column(
@@ -451,7 +444,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> {
     );
   }
 
-  // 无植物时的精美提示卡片
   Widget _buildEmptyPlaceholder() {
     const Color primaryDarkGreen = Color(0xFF2C4A3E);
     return Column(

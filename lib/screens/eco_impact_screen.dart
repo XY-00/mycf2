@@ -16,7 +16,10 @@ class EcoImpactScreen extends StatefulWidget {
   State<EcoImpactScreen> createState() => _EcoImpactScreenState();
 }
 
-class _EcoImpactScreenState extends State<EcoImpactScreen> {
+class _EcoImpactScreenState extends State<EcoImpactScreen> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true; // 👑 保持页面滚动位置
+
   String _profileName = 'Lee Xin Yi';
   String _profileId = 'FARM0027';
 
@@ -323,6 +326,7 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // 👑 必须保留以支持 KeepAlive 滚动位置记忆
     const Color primaryDarkGreen = Color(0xFF2C4A3E); 
     String overallGrade = _calculateGrade(_totalSaved);
     Color overallGradeColor = _getGradeColor(overallGrade);
@@ -356,7 +360,6 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
             ),
             const SizedBox(height: 14),
 
-            // Grade 模块主卡片（已删掉 Top 5% of Farmers，只留 Eco Friendly Grade）
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0), 
               child: Column(
@@ -417,7 +420,6 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
             ),
             const SizedBox(height: 10),
 
-            // 核心指标卡片
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0), 
               child: Row(
@@ -430,7 +432,6 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
             ),
             const SizedBox(height: 14),
             
-            // 历史记录大卡片
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),

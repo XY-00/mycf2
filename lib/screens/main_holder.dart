@@ -1,3 +1,4 @@
+// lib/main_holder.dart (或者你对应的导航容器文件名)
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dashboard_screen.dart';
@@ -17,19 +18,23 @@ class MainHolder extends StatefulWidget {
 class _MainHolderState extends State<MainHolder> {
   int _currentIndex = 0;
   
+  // 👑 核心：引入 PageController 来配合 KeepAlive 缓存所有页面的滚动位置
+  late final PageController _pageController;
+
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
 
-  final List<Widget> _pages = [
-    const DashboardScreen(),
-    const PlantProfileScreen(),
-    const AnalyticScreen(),
-    const EcoImpactScreen(),
-    const SettingScreen(),
+  final List<Widget> _pages = const [
+    DashboardScreen(),
+    PlantProfileScreen(),
+    AnalyticScreen(),
+    EcoImpactScreen(),
+    SettingScreen(),
   ];
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
     _initNotifications();
 
     // 整个 App 生命周期的全局唯一监控启动入口
@@ -52,6 +57,7 @@ class _MainHolderState extends State<MainHolder> {
 
   @override
   void dispose() {
+    _pageController.dispose();
     HardwareStatusManager.stopMonitoring();
     super.dispose();
   }
@@ -74,10 +80,23 @@ class _MainHolderState extends State<MainHolder> {
           ),
           Scaffold(
             backgroundColor: Colors.transparent, 
-            body: _pages[_currentIndex],
+            // 👑 核心修改：用 PageView 替换原本的 _pages[_currentIndex]，实现页面状态和滚动位置永久记忆
+            body: PageView(
+              controller: _pageController,
+              physics: const NeverScrollableScrollPhysics(), // 禁用左右滑动切换，只允许通过底部导航栏点击切换
+              children: _pages,
+              onPageChanged: (index) {
+                setState(() {
+                  _currentIndex = index;
+                });
+              },
+            ),
             bottomNavigationBar: BottomNavigationBar(
               currentIndex: _currentIndex,
-              onTap: (index) => setState(() => _currentIndex = index),
+              onTap: (index) {
+                // 👑 使用 jumpToPage 配合子页面的 KeepAlive，切走再回来绝对不会回到顶部
+                _pageController.jumpToPage(index);
+              },
               type: BottomNavigationBarType.fixed,
               selectedItemColor: const Color(0xFF497E66),
               unselectedItemColor: Colors.grey,
