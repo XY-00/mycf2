@@ -1,3 +1,4 @@
+// lib/hardware_status_manager.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -127,7 +128,7 @@ class HardwareStatusManager {
         dhtOnline = false;
       }
 
-      // 3. 👑 核心修复：只获取当前用户真正拥有的 active 植物槽位！
+      // 3. 👑 核心：检查当前用户活跃植物的硬件状态，并引入 6 秒超时强制断开判定
       if (piOnline) {
         try {
           final userPlantsResponse = await supabase
@@ -145,11 +146,10 @@ class HardwareStatusManager {
             }
           }
 
-          // 如果用户当前有活跃植物，仅查询属于该用户的 hardware_status
           if (myActiveSlots.isNotEmpty) {
             final hardwareResponse = await supabase
                 .from('hardware_status')
-                .select('slot_number, moisture_level, sensor_connected')
+                .select('slot_number, moisture_level, sensor_connected, updated_at')
                 .eq('user_id', user.id);
 
             if (hardwareResponse != null) {
@@ -158,12 +158,25 @@ class HardwareStatusManager {
                 double moisture = (item['moisture_level'] ?? 0.0).toDouble();
                 bool sensorConn = item['sensor_connected'] ?? false;
 
-                // 👑 双重拦截：只有当前用户拥有的槽位 + 传感器在线 + 湿度低于 59% 才报警
+                // 👑 检查更新时间戳：超过 6 秒没有新数据，强制判定为未连接（解决关机仍显 TRUE 的残留问题）
+                final updatedAtStr = item['updated_at']?.toString();
+                if (updatedAtStr != null) {
+                  String rawTime = updatedAtStr.contains('+') ? updatedAtStr.split('+')[0] : updatedAtStr.replaceAll('Z', '');
+                  DateTime lastUpdateTime = DateTime.parse(rawTime);
+                  int diffSeconds = DateTime.now().difference(lastUpdateTime).inSeconds;
+                  if (diffSeconds > 6) {
+                    sensorConn = false; 
+                  }
+                } else {
+                  sensorConn = false;
+                }
+
+                // 只有当前用户拥有的槽位 + 传感器在线 + 湿度低于 59% 才报警
                 if (myActiveSlots.contains(slot) && sensorConn && moisture <= 59.0) {
                   if (_plantAlertLocks[slot] != true) {
                     _plantAlertLocks[slot] = true; 
                     _sendSystemPushNotification(
-                      100 + slot, // 使用固定通知 ID，绝不重复刷屏
+                      100 + slot, 
                       'SOIL MOISTURE EXCEPTION',
                       'Plant Slot $slot soil moisture dropped to ${moisture.toStringAsFixed(1)}%! Please check if the sensor is properly inserted in soil.'
                     );
@@ -237,7 +250,7 @@ class HardwareStatusManager {
     );
 
     await _notificationsPlugin!.show(
-      notificationId, // 👑 使用固定 ID 避免无休止生成多条横幅
+      notificationId, 
       title,
       body,
       NotificationDetails(android: androidDetails),
