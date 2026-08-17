@@ -59,7 +59,10 @@ class SettingScreen extends StatefulWidget {
   State<SettingScreen> createState() => _SettingScreenState();
 }
 
-class _SettingScreenState extends State<SettingScreen> {
+class _SettingScreenState extends State<SettingScreen> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true; // 保持页面滚动位置，切走再回来不用重新划
+
   static double _minimumMoistureStart = 59.0;
   static double _maxMoistureStop = 80.0;
   static String _selectedAutoMode = 'Full Auto';
@@ -479,6 +482,7 @@ class _SettingScreenState extends State<SettingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // 必须保留以支持 KeepAlive 滚动保持
     const Color primaryGreen = Color(0xFF2C4A3E); 
     const Color softIvoryWhite = Color(0xFFF9FBFA); 
 
@@ -748,16 +752,13 @@ class _SettingScreenState extends State<SettingScreen> {
                     final user = Supabase.instance.client.auth.currentUser;
                     if (user != null) {
                       try {
-                        // 👑 修复：点击 Logout 时，将当前用户的所有硬件状态在底层设为 FALSE
+                        // 👑 关键修复：点击 Logout 时，只把连接状态设为 false，绝对不碰、不覆写 moisture_level，完美保留最后记录！
                         for (int slot = 1; slot <= 3; slot++) {
-                          await Supabase.instance.client.from('hardware_status').upsert({
-                            'slot_number': slot,
-                            'user_id': user.id,
+                          await Supabase.instance.client.from('hardware_status').update({
                             'sensor_connected': false,
                             'pump_connected': false,
-                            'moisture_level': 0.0,
                             'updated_at': DateTime.now().toIso8601String(),
-                          });
+                          }).eq('user_id', user.id).eq('slot_number', slot);
                         }
 
                         await Supabase.instance.client

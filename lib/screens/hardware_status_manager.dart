@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 class HardwareStatusManager {
   static bool isPiConnected = false;     
@@ -16,6 +17,7 @@ class HardwareStatusManager {
   
   static final Map<int, bool> _plantAlertLocks = {};
   static final List<VoidCallback> _listeners = [];
+  static final AudioPlayer _audioPlayer = AudioPlayer();
 
   static void initNotifications(FlutterLocalNotificationsPlugin plugin) {
     _notificationsPlugin = plugin;
@@ -60,6 +62,7 @@ class HardwareStatusManager {
     isFloatConnected = false;
     _lastPiStatus = null;
     _plantAlertLocks.clear();
+    _audioPlayer.dispose();
     _notifyListeners();
     debugPrint('HardwareStatusManager: Monitoring stopped and fully reset.');
   }
@@ -70,12 +73,46 @@ class HardwareStatusManager {
     }
   }
 
+  // 👑 触发水箱 0% 警报横幅与声音
+  static Future<void> triggerTankEmptyAlert() async {
+    try {
+      await _audioPlayer.stop();
+      await _audioPlayer.play(UrlSource('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
+    } catch (e) {
+      debugPrint('Audio play error: $e');
+    }
+
+    if (_notificationsPlugin != null) {
+      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'mycf_tank_alert_channel_id',
+        'myCF Water Tank & System Alerts',
+        channelDescription: 'Notifications for water tank storage and system alerts',
+        importance: Importance.max,
+        priority: Priority.high,
+        ticker: 'myCF Alert',
+        icon: '@mipmap/ic_launcher',
+        enableVibration: true,
+        playSound: true,
+        styleInformation: BigTextStyleInformation(
+          'Float sensor detected water tank is empty (0%)! Water pumps have been automatically locked.',
+          contentTitle: 'CRITICAL WARNING: TANK EMPTY',
+        ),
+      );
+
+      await _notificationsPlugin!.show(
+        999,
+        'CRITICAL WARNING: TANK EMPTY',
+        'Float sensor detected water tank is empty (0%)! Water pumps have been automatically locked.',
+        const NotificationDetails(android: androidDetails),
+      );
+    }
+  }
+
   static Future<void> checkHardwareConnection() async {
     try {
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
       
-      // 如果未登录或已登出，立刻清空并退出，绝对不查任何硬件状态
       if (user == null) {
         isPiConnected = false;
         isDhtConnected = false;
@@ -126,7 +163,7 @@ class HardwareStatusManager {
         dhtOnline = false;
       }
 
-      // 3. 核心防污染：后台湿度异常警报，必须严格只查当前登录 user_id 拥有的 active 槽位！
+      // 3. 后台湿度异常警报
       if (piOnline) {
         try {
           final userPlantsResponse = await supabase
@@ -156,7 +193,6 @@ class HardwareStatusManager {
                 double moisture = (item['moisture_level'] ?? 0.0).toDouble();
                 bool sensorConn = item['sensor_connected'] ?? false;
 
-                // 👑 检查新鲜度：放宽至 15 秒内，防止网络或循环延迟误判为 unconnected
                 final updatedAtStr = item['updated_at']?.toString();
                 if (updatedAtStr != null) {
                   String rawTime = updatedAtStr.contains('+') ? updatedAtStr.split('+')[0] : updatedAtStr.replaceAll('Z', '');
@@ -169,7 +205,6 @@ class HardwareStatusManager {
                   sensorConn = false;
                 }
 
-                // 只有当前用户拥有的槽位 + 传感器在线 + 湿度低于 59% 才报警
                 if (myActiveSlots.contains(slot) && sensorConn && moisture <= 59.0) {
                   if (_plantAlertLocks[slot] != true) {
                     _plantAlertLocks[slot] = true; 

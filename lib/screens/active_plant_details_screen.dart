@@ -25,7 +25,10 @@ class ActivePlantDetailsScreen extends StatefulWidget {
   State<ActivePlantDetailsScreen> createState() => _ActivePlantDetailsScreenState();
 }
 
-class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
+class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true; // 保持页面滚动位置
+
   late String _currentName;
   late DateTime _currentDate;
   late String _currentAvatar;
@@ -76,36 +79,41 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
 
       int slotNumber = widget.slotIndex + 1;
       
-      // 直接从 hardware_status 表精准拉取当前用户和当前 slot 的实时状态与湿度
-      final response = await Supabase.instance.client
+      // 👑 全量拉取该用户该 slot 的所有历史记录（按时间倒序），确保能精准抓到最后一次有效湿度
+      final responseList = await Supabase.instance.client
           .from('hardware_status')
           .select()
           .eq('user_id', user.id) 
           .eq('slot_number', slotNumber)
-          .order('updated_at', ascending: false)
-          .limit(1)
-          .maybeSingle();
+          .order('updated_at', ascending: false);
 
-      if (response != null && mounted) {
-        bool sensorConn = response['sensor_connected'] ?? false;
-        bool pumpConn = response['pump_connected'] ?? false;
-        double dbMoisture = (response['moisture_level'] ?? 0.0).toDouble();
+      double realMoisture = 0.0;
+      bool sensorConn = false;
+      bool pumpConn = false;
 
+      if (responseList != null && (responseList as List).isNotEmpty) {
+        // 取最新的一行获取当前的连接状态
+        final latest = responseList.first;
+        sensorConn = latest['sensor_connected'] ?? false;
+        pumpConn = latest['pump_connected'] ?? false;
+
+        // 遍历所有历史行，寻找第一个大于 0 的数字作为 Last Record 展示
+        for (var row in responseList) {
+          double m = (row['moisture_level'] ?? 0.0).toDouble();
+          if (m > 0.0) {
+            realMoisture = m;
+            break; 
+          }
+        }
+      }
+
+      if (mounted) {
         setState(() {
           _isSensorConnected = sensorConn;
           _isPumpConnected = pumpConn;
-          _moistureLevel = dbMoisture;
+          _moistureLevel = realMoisture;
           _isCheckingHardware = false;
         });
-      } else {
-        if (mounted) {
-          setState(() {
-            _isSensorConnected = false;
-            _isPumpConnected = false;
-            _moistureLevel = 0.0;
-            _isCheckingHardware = false;
-          });
-        }
       }
     } catch (e) {
       if (mounted) {
@@ -292,7 +300,6 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
     );
   }
 
-  // 👑 补回缺失的 _openGrowthHistoryGallery 方法定义
   void _openGrowthHistoryGallery(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -390,6 +397,7 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // 保持页面滚动位置
     const Color primaryDarkGreen = Color(0xFF2C4A3E);
     const Color unifiedCardBg = Color(0xFFF0F5F1); 
     int slotNum = widget.slotIndex + 1;

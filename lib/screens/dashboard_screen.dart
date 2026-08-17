@@ -6,7 +6,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'setting_screen.dart'; 
 import 'hardware_status_manager.dart'; 
 
-// 引入计算文件
 import 'calculator_carbon.dart';
 import 'calculator_hydration.dart';
 import 'calculator_stability.dart';
@@ -18,7 +17,10 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true; // 👑 保持页面滚动位置，切走再回来不用重新划
+
   double _carbonSaved = 0.0;
   double _moisture = 62.9;
   int _stabilityScore = 90;
@@ -27,11 +29,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? _lastRecordedTimeString; 
   bool _isLoadingDHT = true; 
   RealtimeChannel? _statusSubscription;
-  RealtimeChannel? _systemControlSubscription; // 👑 新增：水箱控制实时监听通道
+  RealtimeChannel? _systemControlSubscription; 
   
-  // 👑 新增：水箱状态变量
   bool _isWaterLevelNormal = true;
   double _waterPercentage = 0.0;
+  bool _hasTriggeredWaterAlert = false; // 👑 防止水箱空时重复触发警报
   
   Timer? _offlineCheckTimer;
   DateTime? _lastDataUpdateTime;
@@ -44,7 +46,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _initData();
     _fetchTotalCarbonFromDatabase();
     _fetchLatestDHTData(); 
-    _fetchWaterTankStatus(); // 👑 新增：初始化拉取水箱状态
+    _fetchWaterTankStatus(); 
     _initSupabaseRealtime();
     
     _offlineCheckTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -97,7 +99,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (mounted) setState(() {});
   }
 
-  /// 1. 拉取水箱初始状态
   Future<void> _fetchWaterTankStatus() async {
     try {
       final supabase = Supabase.instance.client;
@@ -108,17 +109,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .maybeSingle();
 
       if (response != null && mounted) {
+        bool isNormal = response['is_water_normal'] ?? true;
+        double pct = (response['water_percentage'] ?? 0.0).toDouble();
+        
         setState(() {
-          _isWaterLevelNormal = response['is_water_normal'] ?? true;
-          _waterPercentage = (response['water_percentage'] ?? 0.0).toDouble();
+          _isWaterLevelNormal = isNormal;
+          _waterPercentage = pct;
         });
+
+        // 👑 如果初始化时水箱就是空的，触发警报
+        if (!isNormal && !_hasTriggeredWaterAlert) {
+          _hasTriggeredWaterAlert = true;
+          HardwareStatusManager.triggerTankEmptyAlert();
+        } else if (isNormal) {
+          _hasTriggeredWaterAlert = false;
+        }
       }
     } catch (e) {
       debugPrint('Fetch water tank status error: $e');
     }
   }
 
-  /// 2. 调用 CarbonCalculator 计算碳足迹
   Future<void> _fetchTotalCarbonFromDatabase() async {
     try {
       final supabase = Supabase.instance.client;
@@ -190,7 +201,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _initSupabaseRealtime() {
-    // 原有的 DHT 传感器实时监听
     _statusSubscription = Supabase.instance.client
         .channel('public:dht11_logs_channel')
         .onPostgresChanges(
@@ -228,7 +238,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         )
         .subscribe();
 
-    // 👑 3. 新增：实时监听 system_control 表中水箱状态的变化
+    // 👑 实时监听 system_control 表水箱变化，直接在当前页面实时更新，无需反复切换
     _systemControlSubscription = Supabase.instance.client
         .channel('public:system_control_water_channel')
         .onPostgresChanges(
@@ -238,10 +248,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
           callback: (payload) {
             final data = payload.newRecord;
             if (data.isNotEmpty && mounted) {
+              bool isNormal = data['is_water_normal'] ?? true;
+              double pct = (data['water_percentage'] ?? 0.0).toDouble();
+
               setState(() {
-                _isWaterLevelNormal = data['is_water_normal'] ?? true;
-                _waterPercentage = (data['water_percentage'] ?? 0.0).toDouble();
+                _isWaterLevelNormal = isNormal;
+                _waterPercentage = pct;
               });
+
+              // 👑 当水位降到 0% 时，触发横幅通知与警报声
+              if (!isNormal && !_hasTriggeredWaterAlert) {
+                _hasTriggeredWaterAlert = true;
+                HardwareStatusManager.triggerTankEmptyAlert();
+              } else if (isNormal) {
+                _hasTriggeredWaterAlert = false;
+              }
             }
           },
         )
@@ -262,6 +283,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // 必须保留以支持 KeepAlive
     const Color primaryDarkGreen = Color(0xFF2C4A3E); 
     const Color softIvoryWhite = Color(0xFFF9FBFA);
 
@@ -406,7 +428,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(height: 6),
                     ],
                   )),
-                  // 👑 实时同步的水箱状态卡片
                   _buildCard(
                     _isWaterLevelNormal ? softIvoryWhite : const Color(0xFFFCE8E6),
                     Column(
@@ -430,7 +451,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: LinearProgressIndicator(
-                            value: _waterPercentage / 100.0, // 动态绑定百分比进度条
+                            value: _waterPercentage / 100.0, 
                             minHeight: 12,
                             backgroundColor: Colors.black12,
                             color: _isWaterLevelNormal ? Colors.blue : Colors.red,
