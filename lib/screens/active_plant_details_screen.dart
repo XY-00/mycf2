@@ -66,13 +66,13 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
 
       int slotNumber = widget.slotIndex + 1;
       
-      // 👑 严格按当前登录用户的 user_id 和 slot_number 联合查询，并按 updated_at 倒序获取最新的一条实时状态
+      // 👑 按 updated_at 倒序获取最新的一条实时状态
       final response = await Supabase.instance.client
           .from('hardware_status')
           .select()
           .eq('slot_number', slotNumber)
           .eq('user_id', user.id)
-          .order('updated_at', ascending: false) // 确保拿到的是树莓派最近一次写入的最新数据
+          .order('updated_at', ascending: false)
           .limit(1)
           .maybeSingle();
 
@@ -81,15 +81,15 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
         bool pumpConn = response['pump_connected'] ?? false;
         double moisture = (response['moisture_level'] ?? 0.0).toDouble();
 
-        // 👑 增加时间戳双重校验：检查这行数据的更新时间是否在最近 15 秒内
-        // 如果树莓派关机或停止运行，旧数据的 updated_at 会停留在过去，直接强制判定为未连接！
+        // 👑 缩短超时时间：检查这行数据的更新时间是否在最近 6 秒内
+        // 超过 6 秒未收到树莓派更新，立刻判定为未连接（Unconnected）
         final updatedAtStr = response['updated_at']?.toString();
         if (updatedAtStr != null) {
           String rawTime = updatedAtStr.contains('+') ? updatedAtStr.split('+')[0] : updatedAtStr.replaceAll('Z', '');
           DateTime lastUpdateTime = DateTime.parse(rawTime);
           int diffSeconds = DateTime.now().difference(lastUpdateTime).inSeconds;
           
-          if (diffSeconds > 15) {
+          if (diffSeconds > 6) {
             sensorConn = false;
             pumpConn = false;
           }
