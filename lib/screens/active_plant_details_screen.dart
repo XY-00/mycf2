@@ -1,3 +1,4 @@
+// lib/screens/active_plant_details_screen.dart
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -62,16 +63,25 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
   Future<void> _fetchHardwareAndMoistureStatus() async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        if (mounted) {
+          setState(() {
+            _isSensorConnected = false;
+            _isPumpConnected = false;
+            _isCheckingHardware = false;
+          });
+        }
+        return;
+      }
 
       int slotNumber = widget.slotIndex + 1;
       
-      // 👑 按 updated_at 倒序获取最新的一条实时状态
+      // 直接从 hardware_status 表精准拉取当前用户和当前 slot 的实时状态与湿度
       final response = await Supabase.instance.client
           .from('hardware_status')
           .select()
+          .eq('user_id', user.id) 
           .eq('slot_number', slotNumber)
-          .eq('user_id', user.id)
           .order('updated_at', ascending: false)
           .limit(1)
           .maybeSingle();
@@ -79,29 +89,12 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
       if (response != null && mounted) {
         bool sensorConn = response['sensor_connected'] ?? false;
         bool pumpConn = response['pump_connected'] ?? false;
-        double moisture = (response['moisture_level'] ?? 0.0).toDouble();
-
-        // 👑 缩短超时时间：检查这行数据的更新时间是否在最近 6 秒内
-        // 超过 6 秒未收到树莓派更新，立刻判定为未连接（Unconnected）
-        final updatedAtStr = response['updated_at']?.toString();
-        if (updatedAtStr != null) {
-          String rawTime = updatedAtStr.contains('+') ? updatedAtStr.split('+')[0] : updatedAtStr.replaceAll('Z', '');
-          DateTime lastUpdateTime = DateTime.parse(rawTime);
-          int diffSeconds = DateTime.now().difference(lastUpdateTime).inSeconds;
-          
-          if (diffSeconds > 6) {
-            sensorConn = false;
-            pumpConn = false;
-          }
-        } else {
-          sensorConn = false;
-          pumpConn = false;
-        }
+        double dbMoisture = (response['moisture_level'] ?? 0.0).toDouble();
 
         setState(() {
           _isSensorConnected = sensorConn;
           _isPumpConnected = pumpConn;
-          _moistureLevel = moisture;
+          _moistureLevel = dbMoisture;
           _isCheckingHardware = false;
         });
       } else {
@@ -299,6 +292,7 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
     );
   }
 
+  // 👑 补回缺失的 _openGrowthHistoryGallery 方法定义
   void _openGrowthHistoryGallery(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -363,7 +357,7 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5CB85C)),
             onPressed: () {
               Navigator.pop(context); 
-              Navigator.pop(context, {'action': 'complete'}); 
+              Navigator.pop(context, {'action': 'complete', 'moisture': _moistureLevel}); 
             },
             child: const Text('Yes, Complete', style: TextStyle(color: Colors.white)),
           ),
@@ -385,7 +379,7 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () {
               Navigator.pop(context); 
-              Navigator.pop(context, {'action': 'delete'}); 
+              Navigator.pop(context, {'action': 'delete', 'moisture': _moistureLevel}); 
             },
             child: const Text('Delete', style: TextStyle(color: Colors.white)),
           ),

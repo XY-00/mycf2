@@ -410,7 +410,6 @@ class _SettingScreenState extends State<SettingScreen> {
   }
 
   void _triggerSemiAutoNotification() {
-    // 👑 修复：这里把 playSound 设置为 false，确保 Semi Auto 弹窗没有警报声音
     _showSystemNotification('Semi Auto Alert', 'Soil moisture dropped below minimum moisture start threshold!', playSound: false);
 
     showDialog(
@@ -746,16 +745,31 @@ class _SettingScreenState extends State<SettingScreen> {
 
                 InkWell(
                   onTap: () async {
-                    try {
-                      await Supabase.instance.client
-                          .from('system_control')
-                          .update({
-                            'is_running': false,
-                            'current_user_id': null,
-                          })
-                          .eq('id', 1);
-                    } catch (e) {
-                      debugPrint('Failed to update system_control on logout: $e');
+                    final user = Supabase.instance.client.auth.currentUser;
+                    if (user != null) {
+                      try {
+                        // 👑 修复：点击 Logout 时，将当前用户的所有硬件状态在底层设为 FALSE
+                        for (int slot = 1; slot <= 3; slot++) {
+                          await Supabase.instance.client.from('hardware_status').upsert({
+                            'slot_number': slot,
+                            'user_id': user.id,
+                            'sensor_connected': false,
+                            'pump_connected': false,
+                            'moisture_level': 0.0,
+                            'updated_at': DateTime.now().toIso8601String(),
+                          });
+                        }
+
+                        await Supabase.instance.client
+                            .from('system_control')
+                            .update({
+                              'is_running': false,
+                              'current_user_id': null,
+                            })
+                            .eq('id', 1);
+                      } catch (e) {
+                        debugPrint('Failed to update system_control on logout: $e');
+                      }
                     }
 
                     HardwareStatusManager.stopMonitoring();

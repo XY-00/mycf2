@@ -14,9 +14,7 @@ class HardwareStatusManager {
   static FlutterLocalNotificationsPlugin? _notificationsPlugin;
   static bool _isInitialized = false;
   
-  // 记录各个植物槽位上一次是否已经弹过湿度警报，防止重复轰炸
   static final Map<int, bool> _plantAlertLocks = {};
-
   static final List<VoidCallback> _listeners = [];
 
   static void initNotifications(FlutterLocalNotificationsPlugin plugin) {
@@ -57,7 +55,6 @@ class HardwareStatusManager {
     _isInitialized = false;
     _listeners.clear();
     
-    // 👑 彻底重置所有连接状态并清空警报锁
     isPiConnected = false;
     isDhtConnected = false;
     isFloatConnected = false;
@@ -78,10 +75,11 @@ class HardwareStatusManager {
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
       
-      // 如果未登录，不执行任何硬件状态和警报检查
+      // 如果未登录或已登出，立刻清空并退出，绝对不查任何硬件状态
       if (user == null) {
         isPiConnected = false;
         isDhtConnected = false;
+        isFloatConnected = false;
         _notifyListeners();
         return;
       }
@@ -128,13 +126,13 @@ class HardwareStatusManager {
         dhtOnline = false;
       }
 
-      // 3. 👑 核心：检查当前用户活跃植物的硬件状态，并引入 6 秒超时强制断开判定
+      // 3. 核心防污染：后台湿度异常警报，必须严格只查当前登录 user_id 拥有的 active 槽位！
       if (piOnline) {
         try {
           final userPlantsResponse = await supabase
               .from('plants')
               .select('slot_number')
-              .eq('user_id', user.id)
+              .eq('user_id', user.id) 
               .eq('status', 'active');
 
           final Set<int> myActiveSlots = {};
@@ -150,7 +148,7 @@ class HardwareStatusManager {
             final hardwareResponse = await supabase
                 .from('hardware_status')
                 .select('slot_number, moisture_level, sensor_connected, updated_at')
-                .eq('user_id', user.id);
+                .eq('user_id', user.id); 
 
             if (hardwareResponse != null) {
               for (var item in hardwareResponse) {
@@ -158,13 +156,13 @@ class HardwareStatusManager {
                 double moisture = (item['moisture_level'] ?? 0.0).toDouble();
                 bool sensorConn = item['sensor_connected'] ?? false;
 
-                // 👑 检查更新时间戳：超过 6 秒没有新数据，强制判定为未连接（解决关机仍显 TRUE 的残留问题）
+                // 👑 检查新鲜度：放宽至 15 秒内，防止网络或循环延迟误判为 unconnected
                 final updatedAtStr = item['updated_at']?.toString();
                 if (updatedAtStr != null) {
                   String rawTime = updatedAtStr.contains('+') ? updatedAtStr.split('+')[0] : updatedAtStr.replaceAll('Z', '');
                   DateTime lastUpdateTime = DateTime.parse(rawTime);
                   int diffSeconds = DateTime.now().difference(lastUpdateTime).inSeconds;
-                  if (diffSeconds > 6) {
+                  if (diffSeconds > 15) {
                     sensorConn = false; 
                   }
                 } else {
@@ -192,7 +190,6 @@ class HardwareStatusManager {
         }
       }
 
-      // 4. 树莓派上下线通知判定
       if (_lastPiStatus == null) {
         _lastPiStatus = piOnline;
         if (piOnline) {
