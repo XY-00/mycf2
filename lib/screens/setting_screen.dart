@@ -1,3 +1,4 @@
+// lib/setting_screen.dart
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -59,7 +60,7 @@ class SettingScreen extends StatefulWidget {
 }
 
 class _SettingScreenState extends State<SettingScreen> {
-  static double _redLineTarget = 59.0;
+  static double _minimumMoistureStart = 59.0;
   static double _maxMoistureStop = 80.0;
   static String _selectedAutoMode = 'Full Auto';
   
@@ -163,6 +164,23 @@ class _SettingScreenState extends State<SettingScreen> {
       title,
       body,
       platformChannelSpecifics,
+    );
+  }
+
+  void _showModeChangeDialog(String modeName) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('System Mode Updated', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
+        content: Text('Successfully switched to $modeName mode.', style: const TextStyle(fontSize: 13, color: Colors.black87)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK', style: TextStyle(color: Color(0xFF2C4A3E), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -392,7 +410,8 @@ class _SettingScreenState extends State<SettingScreen> {
   }
 
   void _triggerSemiAutoNotification() {
-    _showSystemNotification('Semi Auto Alert', 'Soil moisture dropped below red-line threshold!', playSound: true);
+    // 👑 修复：这里把 playSound 设置为 false，确保 Semi Auto 弹窗没有警报声音
+    _showSystemNotification('Semi Auto Alert', 'Soil moisture dropped below minimum moisture start threshold!', playSound: false);
 
     showDialog(
       context: context,
@@ -415,7 +434,7 @@ class _SettingScreenState extends State<SettingScreen> {
               ),
               const SizedBox(height: 14),
               const Text(
-                'Soil moisture has dropped below the red-line threshold in Semi Auto mode.\n\nWould you like to trigger irrigation now, or ignore and water manually later?',
+                'Soil moisture has dropped below the minimum moisture start threshold in Semi Auto mode.\n\nWould you like to trigger irrigation now, or ignore and water manually later?',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 13, height: 1.4, color: Colors.black87),
               ),
@@ -569,34 +588,43 @@ class _SettingScreenState extends State<SettingScreen> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      _buildModeBtn('Full Auto', _selectedAutoMode == 'Full Auto', () => setState(() => _selectedAutoMode = 'Full Auto')),
-                      _buildModeBtn('Semi Auto', _selectedAutoMode == 'Semi Auto', () => setState(() {
-                        _selectedAutoMode = 'Semi Auto';
-                        _triggerSemiAutoNotification();
-                      })),
-                      _buildModeBtn('Manual', _selectedAutoMode == 'Manual', () => setState(() {
-                        _selectedAutoMode = 'Manual';
-                      })),
+                      _buildModeBtn('Full Auto', _selectedAutoMode == 'Full Auto', () {
+                        setState(() => _selectedAutoMode = 'Full Auto');
+                        _showModeChangeDialog('Full Auto');
+                      }),
+                      _buildModeBtn('Semi Auto', _selectedAutoMode == 'Semi Auto', () {
+                        setState(() {
+                          _selectedAutoMode = 'Semi Auto';
+                          _triggerSemiAutoNotification();
+                        });
+                        _showModeChangeDialog('Semi Auto');
+                      }),
+                      _buildModeBtn('Manual', _selectedAutoMode == 'Manual', () {
+                        setState(() {
+                          _selectedAutoMode = 'Manual';
+                        });
+                        _showModeChangeDialog('Manual');
+                      }),
                     ],
                   ),
                   const SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(children: const [Icon(Icons.waves, size: 14, color: Colors.black54), SizedBox(width: 4), Text('Carbon Red-line Target', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen))]),
-                      Text('${_redLineTarget.toStringAsFixed(1)} %', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
+                      Row(children: const [Icon(Icons.waves, size: 14, color: Colors.black54), SizedBox(width: 4), Text('Minimum Moisture Start', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen))]),
+                      Text('${_minimumMoistureStart.toStringAsFixed(1)} %', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
                     ],
                   ),
                   Slider(
-                    value: _redLineTarget, min: 0, max: 100, activeColor: primaryGreen, inactiveColor: Colors.black12,
-                    onChanged: (val) => setState(() => _redLineTarget = val),
+                    value: _minimumMoistureStart, min: 0, max: 100, activeColor: primaryGreen, inactiveColor: Colors.black12,
+                    onChanged: (val) => setState(() => _minimumMoistureStart = val),
                   ),
                   const SizedBox(height: 6),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Row(children: const [Icon(Icons.stop_circle_outlined, size: 14, color: Colors.black54), SizedBox(width: 4), Text('Max Moisture Stop Limit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen))]),
-                      Text('${_maxMoistureStop.toStringAsFixed(0)} %', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
+                      Text('${_maxMoistureStop.toStringAsFixed(1)} %', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
                     ],
                   ),
                   Slider(
@@ -718,7 +746,6 @@ class _SettingScreenState extends State<SettingScreen> {
 
                 InkWell(
                   onTap: () async {
-                    // 👑 关键修改：点击 LOG OUT 时，将系统开关设为 false，并清空当前登录的 user_id
                     try {
                       await Supabase.instance.client
                           .from('system_control')

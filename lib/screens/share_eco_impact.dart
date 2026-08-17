@@ -1,3 +1,4 @@
+// lib/share_eco_impact.dart
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -13,12 +14,14 @@ class ShareEcoImpactDialog extends StatefulWidget {
   final String profileName;
   final String profileId;
   final String grade;
+  final double carbonSaved; // 接收从主页面传过来的真实碳足迹数值
 
   const ShareEcoImpactDialog({
     Key? key,
     required this.profileName,
     required this.profileId,
     this.grade = 'A',
+    this.carbonSaved = 0.0,
   }) : super(key: key);
 
   @override
@@ -125,9 +128,10 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
       File? imageFile = await _captureImageFile();
       if (imageFile == null) throw 'Failed to capture image';
 
+      // 实时同步当前的 carbonSaved 数值到分享文案中
       await Share.shareXFiles(
         [XFile(imageFile.path)],
-        text: 'Check out my Eco Impact Grade ${widget.grade} on myCF! Total Carbon Footprint Saved: 146.0 mg CO2e 🌱',
+        text: 'Check out my Eco Impact Grade ${widget.grade} on myCF! Total Carbon Footprint Saved: ${widget.carbonSaved.toStringAsFixed(1)} mg CO2e 🌱',
         subject: 'My myCF Eco Impact',
       );
     } catch (e) {
@@ -275,18 +279,19 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
                                         const SizedBox(height: 6),
                                         Row(
                                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: const [
-                                            Expanded(
+                                          children: [
+                                            const Expanded(
                                               child: Text(
                                                 'Carbon Footprint Saved', 
                                                 style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.white),
                                                 overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
-                                            SizedBox(width: 4),
+                                            const SizedBox(width: 4),
+                                            // 实时绑定当前真实的碳减排数值
                                             Text(
-                                              '146.0 mg', 
-                                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amberAccent),
+                                              '${widget.carbonSaved.toStringAsFixed(1)} mg', 
+                                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amberAccent),
                                             ),
                                           ],
                                         ),

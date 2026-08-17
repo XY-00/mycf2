@@ -1,8 +1,8 @@
+// lib/moisture_chart_card.dart
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class MoistureChartCard extends StatefulWidget {
-  final int selectedTab;
+  final int selectedTab; // 0: All Plants, 1: Plant 1, 2: Plant 2, 3: Plant 3
   final List<int> activeSlots;
   final List<int> trendPlant1;
   final List<int> trendPlant2;
@@ -39,7 +39,7 @@ class _MoistureChartCardState extends State<MoistureChartCard> {
   }
 
   List<int> _processDataForMode(List<int> sourceData) {
-    if (sourceData.isEmpty) return List.filled(10, 60);
+    if (sourceData.isEmpty) return [];
     int targetCount = _getXLabels().length;
     
     if (_selectedViewMode == 'daily') {
@@ -64,8 +64,7 @@ class _MoistureChartCardState extends State<MoistureChartCard> {
     final DateTime now = DateTime.now();
 
     if (_selectedViewMode == 'yearly') {
-      // 👑 只允许选择到今年为止的年份（不出现未来年份）
-      final List<int> years = List.generate(7, (i) => now.year - i); // 例如 2026, 2025, 2024, 2023...
+      final List<int> years = List.generate(7, (i) => now.year - i);
       int? selectedYear = await showDialog<int>(
         context: context,
         builder: (context) => SimpleDialog(
@@ -77,7 +76,6 @@ class _MoistureChartCardState extends State<MoistureChartCard> {
         ),
       );
       if (selectedYear != null) {
-        // 如果选了今年，确保月份不大於当前月份
         int targetMonth = (_selectedDate.year == selectedYear && _selectedDate.month > now.month) ? now.month : _selectedDate.month;
         int targetDay = _selectedDate.day;
         if (selectedYear == now.year && targetMonth == now.month && targetDay > now.day) {
@@ -86,7 +84,6 @@ class _MoistureChartCardState extends State<MoistureChartCard> {
         setState(() => _selectedDate = DateTime(selectedYear, targetMonth, targetDay));
       }
     } else if (_selectedViewMode == 'monthly') {
-      // 👑 如果选的是今年，只能选到当前月份及以前；如果是往年，可以选全部 12 个月
       final List<Map<String, dynamic>> allMonths = [
         {'name': 'January', 'val': 1}, {'name': 'February', 'val': 2}, {'name': 'March', 'val': 3},
         {'name': 'April', 'val': 4}, {'name': 'May', 'val': 5}, {'name': 'June', 'val': 6},
@@ -121,12 +118,11 @@ class _MoistureChartCardState extends State<MoistureChartCard> {
         setState(() => _selectedDate = DateTime(_selectedDate.year, selectedMonth, targetDay));
       }
     } else {
-      // 👑 Daily 模式：严格限制 lastDate 为今天（DateTime.now()），未来的日期会自动变成灰色无法点击！
       final DateTime? picked = await showDatePicker(
         context: context,
         initialDate: _selectedDate.isAfter(now) ? now : _selectedDate,
         firstDate: DateTime(2020, 1, 1),
-        lastDate: now, // 绝对不能选未来
+        lastDate: now,
         builder: (context, child) {
           return Theme(
             data: ThemeData.light().copyWith(
@@ -260,7 +256,6 @@ class _MoistureChartCardState extends State<MoistureChartCard> {
                                   child: CustomPaint(
                                     painter: MultiPlantTrendPainter(
                                       selectedTab: widget.selectedTab,
-                                      activeSlots: widget.activeSlots,
                                       trendPlant1: _processDataForMode(widget.trendPlant1),
                                       trendPlant2: _processDataForMode(widget.trendPlant2),
                                       trendPlant3: _processDataForMode(widget.trendPlant3),
@@ -294,8 +289,7 @@ class _MoistureChartCardState extends State<MoistureChartCard> {
 }
 
 class MultiPlantTrendPainter extends CustomPainter {
-  final int selectedTab;
-  final List<int> activeSlots;
+  final int selectedTab; // 0: All Plants, 1: Plant 1, 2: Plant 2, 3: Plant 3
   final List<int> trendPlant1;
   final List<int> trendPlant2;
   final List<int> trendPlant3;
@@ -304,7 +298,6 @@ class MultiPlantTrendPainter extends CustomPainter {
 
   MultiPlantTrendPainter({
     required this.selectedTab,
-    required this.activeSlots,
     required this.trendPlant1,
     required this.trendPlant2,
     required this.trendPlant3,
@@ -330,22 +323,24 @@ class MultiPlantTrendPainter extends CustomPainter {
     canvas.save();
     canvas.translate(0, topPadding);
 
-    if (selectedTab == 0 && activeSlots.isNotEmpty) {
+    // 👑 当在 All Plants 模式 (0) 时，在图表右上角绘制对应植物的图例颜色指示
+    if (selectedTab == 0) {
       double rightEdge = leftPadding + chartWidth;
-      int count = activeSlots.length;
-      double totalLegendWidth = count * 26.0;
+      List<Map<String, dynamic>> legends = [];
+      if (trendPlant1.isNotEmpty) legends.add({'label': 'P1', 'color': const Color(0xFF5CB85C)});
+      if (trendPlant2.isNotEmpty) legends.add({'label': 'P2', 'color': Colors.blueAccent});
+      if (trendPlant3.isNotEmpty) legends.add({'label': 'P3', 'color': Colors.orangeAccent});
+
+      double totalLegendWidth = legends.length * 26.0;
       double legendX = rightEdge - totalLegendWidth;
       double legendY = -14.0;
 
-      for (var slot in activeSlots) {
-        Color dotColor = slot == 1 ? const Color(0xFF5CB85C) : (slot == 2 ? Colors.blueAccent : Colors.orangeAccent);
-        String label = slot == 1 ? 'P1' : (slot == 2 ? 'P2' : 'P3');
-
-        final dotPaint = Paint()..color = dotColor..style = PaintingStyle.fill;
+      for (var leg in legends) {
+        final dotPaint = Paint()..color = leg['color']..style = PaintingStyle.fill;
         canvas.drawCircle(Offset(legendX + 3, legendY + 4), 3, dotPaint);
         
         TextPainter tp = TextPainter(
-          text: TextSpan(text: label, style: const TextStyle(color: Colors.black87, fontSize: 9.5, fontWeight: FontWeight.bold, fontFamily: 'Roboto')),
+          text: TextSpan(text: leg['label'], style: const TextStyle(color: Colors.black87, fontSize: 9.5, fontWeight: FontWeight.bold, fontFamily: 'Roboto')),
           textDirection: TextDirection.ltr,
         )..layout();
         tp.paint(canvas, Offset(legendX + 8, legendY - 1));
@@ -412,20 +407,28 @@ class MultiPlantTrendPainter extends CustomPainter {
       canvas.drawPath(path, paint);
     }
 
+    // 👑 关键逻辑：
+    // 当选 All Plants (0) 时：同时画出所有有数据的植物折线
+    // 当选 Plant 1 (1) 时：只画 Plant 1 折线
+    // 当选 Plant 2 (2) 时：只画 Plant 2 折线
+    // 当选 Plant 3 (3) 时：只画 Plant 3 折线
     if (selectedTab == 0) {
-      if (activeSlots.contains(1)) drawLineWithPoints(trendPlant1, const Color(0xFF5CB85C));
-      if (activeSlots.contains(2)) drawLineWithPoints(trendPlant2, Colors.blueAccent);
-      if (activeSlots.contains(3)) drawLineWithPoints(trendPlant3, Colors.orangeAccent);
-    } else {
-      List<int> activeData = selectedTab == 1 ? trendPlant1 : (selectedTab == 2 ? trendPlant2 : trendPlant3);
-      Color activeColor = selectedTab == 1 ? const Color(0xFF5CB85C) : (selectedTab == 2 ? Colors.blueAccent : Colors.orangeAccent);
-      drawLineWithPoints(activeData, activeColor);
+      if (trendPlant1.isNotEmpty) drawLineWithPoints(trendPlant1, const Color(0xFF5CB85C));
+      if (trendPlant2.isNotEmpty) drawLineWithPoints(trendPlant2, Colors.blueAccent);
+      if (trendPlant3.isNotEmpty) drawLineWithPoints(trendPlant3, Colors.orangeAccent);
+    } else if (selectedTab == 1 && trendPlant1.isNotEmpty) {
+      drawLineWithPoints(trendPlant1, const Color(0xFF5CB85C));
+    } else if (selectedTab == 2 && trendPlant2.isNotEmpty) {
+      drawLineWithPoints(trendPlant2, Colors.blueAccent);
+    } else if (selectedTab == 3 && trendPlant3.isNotEmpty) {
+      drawLineWithPoints(trendPlant3, Colors.orangeAccent);
     }
 
+    // 👑 触摸交互联动：根据当前选中的 Tab 获取对应植物的数据进行 Tooltip 提示
     if (touchPosition != null) {
       Offset adjustedTouch = Offset(touchPosition!.dx, touchPosition!.dy - topPadding);
 
-      List<int> targetData = trendPlant1;
+      List<int> targetData = [];
       String plantLabel = 'P1';
       Color dotColor = const Color(0xFF5CB85C);
 
@@ -442,43 +445,52 @@ class MultiPlantTrendPainter extends CustomPainter {
         plantLabel = 'P3';
         dotColor = Colors.orangeAccent;
       } else {
-        targetData = trendPlant1;
-        plantLabel = 'P1';
-        dotColor = const Color(0xFF5CB85C);
+        // 在 All Plants 视图下，默认响应离触摸点最近的那条线的数值
+        List<Map<String, dynamic>> activeLines = [];
+        if (trendPlant1.isNotEmpty) activeLines.add({'data': trendPlant1, 'label': 'P1', 'color': const Color(0xFF5CB85C)});
+        if (trendPlant2.isNotEmpty) activeLines.add({'data': trendPlant2, 'label': 'P2', 'color': Colors.blueAccent});
+        if (trendPlant3.isNotEmpty) activeLines.add({'data': trendPlant3, 'label': 'P3', 'color': Colors.orangeAccent});
+
+        if (activeLines.isNotEmpty) {
+          targetData = activeLines[0]['data'];
+          plantLabel = activeLines[0]['label'];
+          dotColor = activeLines[0]['color'];
+        }
       }
 
-      List<Offset> pts = getPoints(targetData);
+      if (targetData.isNotEmpty) {
+        List<Offset> pts = getPoints(targetData);
+        if (pts.isNotEmpty) {
+          Offset closestPoint = pts.reduce((a, b) => 
+            (a.dx - adjustedTouch.dx).abs() < (b.dx - adjustedTouch.dx).abs() ? a : b
+          );
 
-      if (pts.isNotEmpty) {
-        Offset closestPoint = pts.reduce((a, b) => 
-          (a.dx - adjustedTouch.dx).abs() < (b.dx - adjustedTouch.dx).abs() ? a : b
-        );
+          int closestIdx = pts.indexOf(closestPoint);
+          int moistureVal = targetData[closestIdx];
+          String labelStr = xLabels[closestIdx.clamp(0, xLabels.length - 1)];
 
-        int closestIdx = pts.indexOf(closestPoint);
-        int moistureVal = targetData[closestIdx];
-        String labelStr = xLabels[closestIdx.clamp(0, xLabels.length - 1)];
+          final linePaint = Paint()..color = Colors.black54..strokeWidth = 1..style = PaintingStyle.stroke;
+          canvas.drawLine(Offset(closestPoint.dx, 0), Offset(closestPoint.dx, chartHeight), linePaint);
 
-        final linePaint = Paint()..color = Colors.black54..strokeWidth = 1..style = PaintingStyle.stroke;
-        canvas.drawLine(Offset(closestPoint.dx, 0), Offset(closestPoint.dx, chartHeight), linePaint);
+          final dotPaint = Paint()..color = dotColor..style = PaintingStyle.fill;
+          canvas.drawCircle(closestPoint, 5.0, dotPaint);
+          canvas.drawCircle(closestPoint, 5.0, Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 1.5);
 
-        final dotPaint = Paint()..color = dotColor..style = PaintingStyle.fill;
-        canvas.drawCircle(closestPoint, 5.0, dotPaint);
-        canvas.drawCircle(closestPoint, 5.0, Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 1.5);
+          String tooltipStr = '$plantLabel | $labelStr: $moistureVal%';
+          TextPainter tooltipTp = TextPainter(
+            text: TextSpan(text: tooltipStr, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold, fontFamily: 'Roboto')),
+            textDirection: TextDirection.ltr,
+          )..layout();
 
-        String tooltipStr = '$plantLabel | $labelStr: $moistureVal%';
-        TextPainter tooltipTp = TextPainter(
-          text: TextSpan(text: tooltipStr, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold, fontFamily: 'Roboto')),
-          textDirection: TextDirection.ltr,
-        )..layout();
+          double boxWidth = tooltipTp.width + 10;
+          double boxHeight = tooltipTp.height + 6;
+          double boxX = (closestPoint.dx - boxWidth / 2).clamp(leftPadding, leftPadding + chartWidth - boxWidth);
+          double boxY = (closestPoint.dy - boxHeight - 8).clamp(0.0, chartHeight - boxHeight);
 
-        double boxWidth = tooltipTp.width + 10;
-        double boxHeight = tooltipTp.height + 6;
-        double boxX = (closestPoint.dx - boxWidth / 2).clamp(leftPadding, leftPadding + chartWidth - boxWidth);
-        double boxY = (closestPoint.dy - boxHeight - 8).clamp(0.0, chartHeight - boxHeight);
-
-        RRect rrect = RRect.fromRectAndRadius(Rect.fromLTWH(boxX, boxY, boxWidth, boxHeight), const Radius.circular(4));
-        canvas.drawRRect(rrect, Paint()..color = Colors.black87);
-        tooltipTp.paint(canvas, Offset(boxX + 5, boxY + 3));
+          RRect rrect = RRect.fromRectAndRadius(Rect.fromLTWH(boxX, boxY, boxWidth, boxHeight), const Radius.circular(4));
+          canvas.drawRRect(rrect, Paint()..color = Colors.black87);
+          tooltipTp.paint(canvas, Offset(boxX + 5, boxY + 3));
+        }
       }
     }
 

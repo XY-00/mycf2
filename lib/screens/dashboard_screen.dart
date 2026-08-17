@@ -1,9 +1,15 @@
+// lib/dashboard_screen.dart
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'setting_screen.dart'; 
 import 'hardware_status_manager.dart'; 
+
+// 引入我们刚刚写好的三个计算文件
+import 'calculator_carbon.dart';
+import 'calculator_hydration.dart';
+import 'calculator_stability.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -70,7 +76,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       
       String updatedRelativeTime = _getRelativeTime(_lastDataUpdateTime!);
 
-      // 实时检测连接状态或时间文案变化，立刻刷新
       if (HardwareStatusManager.isDhtConnected != isConnected || _lastRecordedTimeString != updatedRelativeTime) {
         if (mounted) {
           setState(() {
@@ -87,16 +92,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (mounted) setState(() {});
   }
 
+  /// 1. 调用 CarbonCalculator 计算碳足迹
   Future<void> _fetchTotalCarbonFromDatabase() async {
     try {
       final supabase = Supabase.instance.client;
       final response = await supabase.from('eco_impact_history').select('saved_amount');
 
       if (response != null && (response as List).isNotEmpty) {
-        double total = 0.0;
-        for (var item in response) {
-          total += double.tryParse(item['saved_amount'].toString()) ?? 0.0;
-        }
+        double total = CarbonCalculator.calculateTotal(response);
         if (mounted) setState(() => _carbonSaved = total);
       }
     } catch (e) {
@@ -125,10 +128,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
           int diffSeconds = DateTime.now().difference(lastTime).inSeconds;
           bool isOnline = (diffSeconds >= 0 && diffSeconds < 7);
 
+          // 模拟获取湿度后，通过计算文件算出 Hydration 和 Stability Score
+          double rawHum = double.tryParse(latest['humidity']?.toString() ?? '62.9') ?? 62.9;
+          double calculatedHydration = HydrationCalculator.calculatePercentage(rawHum);
+          int calculatedScore = StabilityCalculator.calculateScore(calculatedHydration);
+
           if (mounted) {
             setState(() {
               _temperature = double.tryParse(latest['temperature']?.toString() ?? '');
-              _humidity = double.tryParse(latest['humidity']?.toString() ?? '');
+              _humidity = rawHum;
+              _moisture = calculatedHydration; // 2. 赋值 Hydration 计算结果
+              _stabilityScore = calculatedScore; // 3. 赋值 Stability Score 计算结果
               _lastRecordedTimeString = relativeTime;
               HardwareStatusManager.isDhtConnected = isOnline;
               _isLoadingDHT = false; 
@@ -172,11 +182,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
               }
               
               String relativeTime = _getRelativeTime(_lastDataUpdateTime!);
+              double rawHum = double.tryParse(data['humidity']?.toString() ?? '62.9') ?? 62.9;
+              double calculatedHydration = HydrationCalculator.calculatePercentage(rawHum);
+              int calculatedScore = StabilityCalculator.calculateScore(calculatedHydration);
 
               if (mounted) {
                 setState(() {
                   _temperature = double.tryParse(data['temperature']?.toString() ?? '');
-                  _humidity = double.tryParse(data['humidity']?.toString() ?? '');
+                  _humidity = rawHum;
+                  _moisture = calculatedHydration;
+                  _stabilityScore = calculatedScore;
                   _lastRecordedTimeString = relativeTime;
                   HardwareStatusManager.isDhtConnected = true;
                   _isLoadingDHT = false;
@@ -351,7 +366,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Water Tank Storage (Float Sensor)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black54)),
+                            // 已成功将括号内容去掉
+                            const Text('Water Tank Storage', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black54)),
                             Icon(
                               _isWaterLevelNormal ? Icons.check_circle : Icons.error_rounded,
                               color: _isWaterLevelNormal ? Colors.green : Colors.red,

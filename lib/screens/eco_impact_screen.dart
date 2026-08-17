@@ -8,7 +8,7 @@ class EcoImpactScreen extends StatefulWidget {
 
   const EcoImpactScreen({
     Key? key,
-    this.totalCarbonSaved = 146.0,
+    this.totalCarbonSaved = 0.0,
     this.onCarbonSavedChanged,
   }) : super(key: key);
 
@@ -22,6 +22,9 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
 
   List<Map<String, dynamic>> _rawHistoryRecords = [];
   final Map<String, bool> _expandedMonths = {};
+  
+  int _redlineSuccessCount = 0;
+  int _redlineTotalCount = 0;
 
   @override
   void initState() {
@@ -42,17 +45,32 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
   Future<void> _fetchEcoImpactFromDatabase() async {
     try {
       final supabase = Supabase.instance.client;
-      final response = await supabase
-          .from('eco_impact_history')
-          .select()
-          .order('record_date', ascending: false);
+      final user = supabase.auth.currentUser;
+
+      final response;
+      if (user != null) {
+        response = await supabase
+            .from('eco_impact_history')
+            .select()
+            .eq('user_id', user.id)
+            .order('record_date', ascending: false);
+      } else {
+        response = await supabase
+            .from('eco_impact_history')
+            .select()
+            .order('record_date', ascending: false);
+      }
 
       if (response != null && (response as List).isNotEmpty) {
         setState(() {
           _rawHistoryRecords = response.map((item) => {
             'date': item['record_date'].toString(),
             'saved': double.tryParse(item['saved_amount'].toString()) ?? 0.0,
+            'success': item['redline_success'] ?? true, 
           }).toList();
+
+          _redlineTotalCount = _rawHistoryRecords.length;
+          _redlineSuccessCount = _rawHistoryRecords.where((r) => r['success'] == true).length;
 
           for (var group in _groupedHistoryData) {
             _expandedMonths[group['month']] = true;
@@ -62,6 +80,11 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
         if (widget.onCarbonSavedChanged != null) {
           widget.onCarbonSavedChanged!(_totalSaved);
         }
+      } else {
+        setState(() {
+          _redlineTotalCount = 0;
+          _redlineSuccessCount = 0;
+        });
       }
     } catch (e) {
       debugPrint('Database fetch fallback used: $e');
@@ -133,11 +156,11 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
         profileName: _profileName,
         profileId: _profileId,
         grade: overallGrade,
+        carbonSaved: _totalSaved, 
       ),
     );
   }
 
-  // 👑 真正的 Data Comparison 弹窗（支持多选两条进行 Before vs After 对比）
   void _showDataComparisonDialog() {
     if (_rawHistoryRecords.length < 2) {
       showDialog(
@@ -151,7 +174,6 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
       return;
     }
 
-    // 默认选择最早的一条作为 Before，最新的一条作为 After
     int beforeIndex = _rawHistoryRecords.length - 1;
     int afterIndex = 0;
 
@@ -233,7 +255,6 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
     );
   }
 
-  // 👑 真正的 Data Export 弹窗（支持选择时间范围与格式）
   void _showDataExportDialog() {
     String selectedRange = 'Recent one month';
     String selectedFormat = 'CSV';
@@ -335,7 +356,7 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
             ),
             const SizedBox(height: 14),
 
-            // Grade 模块主卡片
+            // Grade 模块主卡片（已删掉 Top 5% of Farmers，只留 Eco Friendly Grade）
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0), 
               child: Column(
@@ -343,7 +364,7 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
                 children: [
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
                     decoration: BoxDecoration(
                       color: Colors.white, 
                       borderRadius: BorderRadius.circular(16), 
@@ -359,12 +380,9 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
                           child: Text(overallGrade, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18)),
                         ),
                         const SizedBox(width: 14),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Text('Eco Friendly Grade', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
-                            Text('Top 5% of Farmers', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black54)),
-                          ],
+                        const Text(
+                          'Eco Friendly Grade', 
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
                         ),
                       ],
                     ),
@@ -406,7 +424,7 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> {
                 children: [
                   Expanded(child: _miniMetricCard('Carbon Footprint Saved', '${_totalSaved.toStringAsFixed(1)} mg', isImageIcon: true)),
                   const SizedBox(width: 12),
-                  Expanded(child: _miniMetricCard('Red-line Success', '3 of 3', icon: Icons.gps_fixed, iconColor: Colors.red)),
+                  Expanded(child: _miniMetricCard('Red-line Success', '$_redlineSuccessCount of $_redlineTotalCount', icon: Icons.gps_fixed, iconColor: Colors.red)),
                 ],
               ),
             ),
