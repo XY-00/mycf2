@@ -12,7 +12,7 @@ class AnalyticScreen extends StatefulWidget {
 
 class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAliveClientMixin {
   @override
-  bool get wantKeepAlive => true; // 👑 保持页面滚动位置
+  bool get wantKeepAlive => true; 
 
   int _selectedPlantTab = 0; 
   bool _isLoading = true;
@@ -196,7 +196,7 @@ class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAlive
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // 👑 必须保留以支持 KeepAlive 滚动位置记忆
+    super.build(context);
     const Color primaryDarkGreen = Color(0xFF2C4A3E); 
 
     return Scaffold(

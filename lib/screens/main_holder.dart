@@ -1,6 +1,7 @@
-// lib/main_holder.dart (或者你对应的导航容器文件名)
+// lib/main_holder.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dashboard_screen.dart';
 import 'plant_profile_screen.dart';
 import 'analytic_screen.dart';
@@ -18,10 +19,12 @@ class MainHolder extends StatefulWidget {
 class _MainHolderState extends State<MainHolder> {
   int _currentIndex = 0;
   
-  // 👑 核心：引入 PageController 来配合 KeepAlive 缓存所有页面的滚动位置
+  // 👑 配合 KeepAlive 的 PageController
   late final PageController _pageController;
 
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
+  RealtimeChannel? _globalSystemControlSubscription;
+  bool _hasTriggeredWaterAlert = false;
 
   final List<Widget> _pages = const [
     DashboardScreen(),
@@ -36,8 +39,8 @@ class _MainHolderState extends State<MainHolder> {
     super.initState();
     _pageController = PageController(initialPage: _currentIndex);
     _initNotifications();
+    _initGlobalWaterRealtime(); // 👑 启动主容器的全局水箱监听
 
-    // 整个 App 生命周期的全局唯一监控启动入口
     HardwareStatusManager.initNotifications(_notificationsPlugin);
     HardwareStatusManager.startMonitoring(() {
       if (mounted) setState(() {});
@@ -55,9 +58,47 @@ class _MainHolderState extends State<MainHolder> {
     await _notificationsPlugin.initialize(initializationSettings);
   }
 
+  // 👑 核心：在主容器 24 小时全局监听水箱，不管在哪个页面、无论首页有没有被缓存，都能立刻检测并报警+刷新
+  void _initGlobalWaterRealtime() {
+    _globalSystemControlSubscription = Supabase.instance.client
+        .channel('public:main_holder_system_control_channel')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'system_control',
+          callback: (payload) {
+            final data = payload.newRecord;
+            if (data.isNotEmpty) {
+              var rawNormal = data['is_water_normal'];
+              bool isNormal = true;
+              if (rawNormal is bool) {
+                isNormal = rawNormal;
+              } else if (rawNormal is String) {
+                isNormal = rawNormal.toLowerCase() == 'true';
+              } else if (rawNormal is num) {
+                isNormal = rawNormal != 0;
+              }
+
+              // 如果水箱空了（false），且还没触发过警报，立刻播放声音 + 弹窗横幅
+              if (!isNormal && !_hasTriggeredWaterAlert) {
+                _hasTriggeredWaterAlert = true;
+                HardwareStatusManager.triggerTankEmptyAlert();
+              } else if (isNormal) {
+                _hasTriggeredWaterAlert = false;
+              }
+
+              // 强制刷新主容器，带动所有子页面状态同步更新
+              if (mounted) setState(() {});
+            }
+          },
+        )
+        .subscribe();
+  }
+
   @override
   void dispose() {
     _pageController.dispose();
+    _globalSystemControlSubscription?.unsubscribe();
     HardwareStatusManager.stopMonitoring();
     super.dispose();
   }
@@ -80,10 +121,9 @@ class _MainHolderState extends State<MainHolder> {
           ),
           Scaffold(
             backgroundColor: Colors.transparent, 
-            // 👑 核心修改：用 PageView 替换原本的 _pages[_currentIndex]，实现页面状态和滚动位置永久记忆
             body: PageView(
               controller: _pageController,
-              physics: const NeverScrollableScrollPhysics(), // 禁用左右滑动切换，只允许通过底部导航栏点击切换
+              physics: const NeverScrollableScrollPhysics(), // 禁用滑动切换，保留滚动记忆
               children: _pages,
               onPageChanged: (index) {
                 setState(() {
@@ -94,7 +134,6 @@ class _MainHolderState extends State<MainHolder> {
             bottomNavigationBar: BottomNavigationBar(
               currentIndex: _currentIndex,
               onTap: (index) {
-                // 👑 使用 jumpToPage 配合子页面的 KeepAlive，切走再回来绝对不会回到顶部
                 _pageController.jumpToPage(index);
               },
               type: BottomNavigationBarType.fixed,

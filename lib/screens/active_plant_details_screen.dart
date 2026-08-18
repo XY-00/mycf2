@@ -27,7 +27,7 @@ class ActivePlantDetailsScreen extends StatefulWidget {
 
 class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> with AutomaticKeepAliveClientMixin {
   @override
-  bool get wantKeepAlive => true; // 保持页面滚动位置
+  bool get wantKeepAlive => true;
 
   late String _currentName;
   late DateTime _currentDate;
@@ -79,7 +79,6 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> wit
 
       int slotNumber = widget.slotIndex + 1;
       
-      // 👑 全量拉取该用户该 slot 的所有历史记录（按时间倒序），确保能精准抓到最后一次有效湿度
       final responseList = await Supabase.instance.client
           .from('hardware_status')
           .select()
@@ -92,12 +91,10 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> wit
       bool pumpConn = false;
 
       if (responseList != null && (responseList as List).isNotEmpty) {
-        // 取最新的一行获取当前的连接状态
         final latest = responseList.first;
         sensorConn = latest['sensor_connected'] ?? false;
         pumpConn = latest['pump_connected'] ?? false;
 
-        // 遍历所有历史行，寻找第一个大于 0 的数字作为 Last Record 展示
         for (var row in responseList) {
           double m = (row['moisture_level'] ?? 0.0).toDouble();
           if (m > 0.0) {
@@ -397,7 +394,7 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> wit
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // 保持页面滚动位置
+    super.build(context);
     const Color primaryDarkGreen = Color(0xFF2C4A3E);
     const Color unifiedCardBg = Color(0xFFF0F5F1); 
     int slotNum = widget.slotIndex + 1;
@@ -548,11 +545,7 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> wit
                                         children: [
                                           const Text(
                                             'Moisture: ', 
-                                            style: TextStyle(
-                                              fontSize: 11, 
-                                              fontWeight: FontWeight.bold, 
-                                              color: Colors.black87,
-                                            ),
+                                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
                                           ),
                                           Text(
                                             '${_moistureLevel.toStringAsFixed(1)}%', 

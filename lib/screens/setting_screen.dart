@@ -61,7 +61,7 @@ class SettingScreen extends StatefulWidget {
 
 class _SettingScreenState extends State<SettingScreen> with AutomaticKeepAliveClientMixin {
   @override
-  bool get wantKeepAlive => true; // 👑 保持页面滚动位置
+  bool get wantKeepAlive => true; 
 
   static double _minimumMoistureStart = 59.0;
   static double _maxMoistureStop = 80.0;
@@ -482,7 +482,7 @@ class _SettingScreenState extends State<SettingScreen> with AutomaticKeepAliveCl
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // 👑 必须保留以支持 KeepAlive 滚动位置记忆
+    super.build(context);
     const Color primaryGreen = Color(0xFF2C4A3E); 
     const Color softIvoryWhite = Color(0xFFF9FBFA); 
 

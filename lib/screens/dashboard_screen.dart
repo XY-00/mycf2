@@ -19,7 +19,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAliveClientMixin {
   @override
-  bool get wantKeepAlive => true; // 👑 保持页面滚动位置
+  bool get wantKeepAlive => true; // 👑 保持页面滚动位置记忆
 
   double _carbonSaved = 0.0;
   double _moisture = 62.9;
@@ -32,7 +32,8 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   RealtimeChannel? _systemControlSubscription; 
   
   bool _isWaterLevelNormal = true;
-  double _waterPercentage = 0.0;
+  double _waterPercentage = 100.0;
+  bool _hasTriggeredWaterAlert = false; 
   
   Timer? _offlineCheckTimer;
   DateTime? _lastDataUpdateTime;
@@ -78,7 +79,9 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     if (_lastDataUpdateTime != null) {
       final now = DateTime.now();
       final diff = now.difference(_lastDataUpdateTime!).inSeconds;
-      bool isConnected = (diff >= 0 && diff < 7);
+      
+      // 👑 12秒缓冲区：平衡灵敏度与防反复横跳
+      bool isConnected = (diff >= 0 && diff < 12);
       
       String updatedRelativeTime = _getRelativeTime(_lastDataUpdateTime!);
 
@@ -101,20 +104,45 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   Future<void> _fetchWaterTankStatus() async {
     try {
       final supabase = Supabase.instance.client;
+      final currentUser = supabase.auth.currentUser;
+
       final response = await supabase
           .from('system_control')
-          .select('is_water_normal, water_percentage')
+          .select('is_water_normal, water_percentage, current_user_id')
           .eq('id', 1)
           .maybeSingle();
 
       if (response != null && mounted) {
-        bool isNormal = response['is_water_normal'] ?? true;
-        double pct = (response['water_percentage'] ?? 0.0).toDouble();
+        String? recordUserId = response['current_user_id']?.toString();
+        // 👑 严格按当前登录用户隔离：只有当这条水箱状态明确属于当前登录用户时，才允许触发警报
+        bool isForThisUser = (currentUser != null && recordUserId == currentUser.id);
+
+        var rawNormal = response['is_water_normal'];
+        bool isNormal = true;
+        if (rawNormal is bool) {
+          isNormal = rawNormal;
+        } else if (rawNormal is String) {
+          isNormal = rawNormal.toLowerCase() == 'true';
+        } else if (rawNormal is num) {
+          isNormal = rawNormal != 0;
+        }
+
+        double pct = (response['water_percentage'] ?? (isNormal ? 100.0 : 0.0)).toDouble();
         
         setState(() {
           _isWaterLevelNormal = isNormal;
           _waterPercentage = pct;
         });
+
+        // 👑 只有当水位确实是 Empty 且属于当前登录用户时才报警；若恢复 Normal 则重置
+        if (!isNormal && isForThisUser) {
+          if (!_hasTriggeredWaterAlert) {
+            _hasTriggeredWaterAlert = true;
+            HardwareStatusManager.triggerTankEmptyAlert();
+          }
+        } else if (isNormal) {
+          _hasTriggeredWaterAlert = false; 
+        }
       }
     } catch (e) {
       debugPrint('Fetch water tank status error: $e');
@@ -154,7 +182,9 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
           
           String relativeTime = _getRelativeTime(lastTime);
           int diffSeconds = DateTime.now().difference(lastTime).inSeconds;
-          bool isOnline = (diffSeconds >= 0 && diffSeconds < 7);
+          
+          // 👑 初始化判断采用 12 秒缓冲区
+          bool isOnline = (diffSeconds >= 0 && diffSeconds < 12);
 
           double rawHum = double.tryParse(latest['humidity']?.toString() ?? '62.9') ?? 62.9;
           double calculatedHydration = HydrationCalculator.calculatePercentage(rawHum);
@@ -229,22 +259,46 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         )
         .subscribe();
 
+    // 👑 实时监听 system_control 水箱状态变化，完美支持 Full <-> Empty 双向切换与用户严格隔离
     _systemControlSubscription = Supabase.instance.client
-        .channel('public:system_control_water_channel')
+        .channel('public:system_control_water_channel_v7')
         .onPostgresChanges(
-          event: PostgresChangeEvent.update,
+          event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'system_control',
           callback: (payload) {
             final data = payload.newRecord;
             if (data.isNotEmpty && mounted) {
-              bool isNormal = data['is_water_normal'] ?? true;
-              double pct = (data['water_percentage'] ?? 0.0).toDouble();
+              final currentUser = Supabase.instance.client.auth.currentUser;
+              String? recordUserId = data['current_user_id']?.toString();
+              bool isForThisUser = (currentUser != null && recordUserId == currentUser.id);
+
+              var rawNormal = data['is_water_normal'];
+              bool isNormal = true;
+              if (rawNormal is bool) {
+                isNormal = rawNormal;
+              } else if (rawNormal is String) {
+                isNormal = rawNormal.toLowerCase() == 'true';
+              } else if (rawNormal is num) {
+                isNormal = rawNormal != 0;
+              }
+
+              double pct = (data['water_percentage'] ?? (isNormal ? 100.0 : 0.0)).toDouble();
 
               setState(() {
                 _isWaterLevelNormal = isNormal;
                 _waterPercentage = pct;
               });
+
+              // 👑 双向触发控制：只有当前登录用户匹配且水箱空了才报警；一旦变成 Normal/Full，立刻重置报警锁并双向刷新为满水状态
+              if (!isNormal && isForThisUser) {
+                if (!_hasTriggeredWaterAlert) {
+                  _hasTriggeredWaterAlert = true;
+                  HardwareStatusManager.triggerTankEmptyAlert();
+                }
+              } else if (isNormal) {
+                _hasTriggeredWaterAlert = false;
+              }
             }
           },
         )
@@ -265,7 +319,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // 👑 必须保留以支持 KeepAlive 滚动位置记忆
+    super.build(context); // 👑 保持页面滚动位置记忆
     const Color primaryDarkGreen = Color(0xFF2C4A3E); 
     const Color softIvoryWhite = Color(0xFFF9FBFA);
 

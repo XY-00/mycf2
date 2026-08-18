@@ -19,6 +19,9 @@ class HardwareStatusManager {
   static final List<VoidCallback> _listeners = [];
   static final AudioPlayer _audioPlayer = AudioPlayer();
 
+  static RealtimeChannel? _globalSystemControlSubscription;
+  static bool _lastWaterNormalState = true;
+
   static void initNotifications(FlutterLocalNotificationsPlugin plugin) {
     _notificationsPlugin = plugin;
   }
@@ -34,11 +37,35 @@ class HardwareStatusManager {
     debugPrint('HardwareStatusManager: Global monitoring started successfully!');
     _lastPiStatus = null; 
     checkHardwareConnection();
+    _initGlobalWaterListener();
 
     _statusCheckTimer?.cancel();
     _statusCheckTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       checkHardwareConnection();
     });
+  }
+
+  static void _initGlobalWaterListener() {
+    _globalSystemControlSubscription?.unsubscribe();
+    _globalSystemControlSubscription = Supabase.instance.client
+        .channel('public:global_system_control_water_channel')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'system_control',
+          callback: (payload) {
+            final data = payload.newRecord;
+            if (data.isNotEmpty) {
+              bool isNormal = data['is_water_normal'] ?? true;
+              if (_lastWaterNormalState && !isNormal) {
+                triggerTankEmptyAlert();
+              }
+              _lastWaterNormalState = isNormal;
+              _notifyListeners();
+            }
+          },
+        )
+        .subscribe();
   }
 
   static void addListener(VoidCallback onUpdate) {
@@ -56,6 +83,7 @@ class HardwareStatusManager {
     _statusCheckTimer = null;
     _isInitialized = false;
     _listeners.clear();
+    _globalSystemControlSubscription?.unsubscribe();
     
     isPiConnected = false;
     isDhtConnected = false;
@@ -73,7 +101,6 @@ class HardwareStatusManager {
     }
   }
 
-  // 👑 触发水箱 0% 警报横幅与声音
   static Future<void> triggerTankEmptyAlert() async {
     try {
       await _audioPlayer.stop();
@@ -121,7 +148,6 @@ class HardwareStatusManager {
         return;
       }
       
-      // 1. 检查树莓派主心跳
       final piResponse = await supabase
           .from('raspberry_pi_status')
           .select('last_seen')
@@ -140,7 +166,6 @@ class HardwareStatusManager {
         }
       }
 
-      // 2. 检查 DHT11 传感器状态
       bool dhtOnline = false;
       try {
         final dhtResponse = await supabase
@@ -163,7 +188,6 @@ class HardwareStatusManager {
         dhtOnline = false;
       }
 
-      // 3. 后台湿度异常警报
       if (piOnline) {
         try {
           final userPlantsResponse = await supabase
