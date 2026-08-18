@@ -49,15 +49,24 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
       android: initializationSettingsAndroid,
     );
 
-    await _notificationsPlugin.initialize(initializationSettings);
+    // 👑 监听通知点击事件：考官点击通知时，直接调起系统查看刚才保存的图片
+    await _notificationsPlugin.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) async {
+        if (response.payload != null && response.payload!.isNotEmpty) {
+          await Share.shareXFiles([XFile(response.payload!)], text: 'Here is your downloaded myCF Eco Impact image.');
+        }
+      },
+    );
   }
 
-  Future<void> _showSystemNotification() async {
+  /// 👑 带有图片文件路径（payload）的系统通知，点击即可打开查看照片
+  Future<void> _showDownloadNotification(String imagePath) async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      'mycf_eco_channel_id',
-      'myCF Eco Impact',
-      channelDescription: 'Notifications for successful eco impact downloads',
+      'mycf_eco_download_channel',
+      'myCF Eco Downloads',
+      channelDescription: 'Notifications for successful eco impact image downloads',
       importance: Importance.max,
       priority: Priority.high,
       ticker: 'myCF download success',
@@ -71,9 +80,10 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
 
     await _notificationsPlugin.show(
       0,
-      'myCF',
-      'Successfully saved to your gallery!',
+      'myCF Download Complete',
+      'myCF_Eco_Impact.png downloaded (Tap to view)',
       platformChannelSpecifics,
+      payload: imagePath, // 把图片的本地路径带上，点击通知时直接触发预览
     );
   }
 
@@ -105,10 +115,15 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
       File? imageFile = await _captureImageFile();
       if (imageFile == null) throw 'Failed to capture image';
 
+      // 1. 保存到手机相册
       await Gal.putImage(imageFile.path);
 
+      // 2. 触发系统下载通知（带路径，点击可直接看图）
       if (mounted) {
-        await _showSystemNotification();
+        await _showDownloadNotification(imageFile.path);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Successfully saved to gallery & notification bar!')),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -128,7 +143,6 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
       File? imageFile = await _captureImageFile();
       if (imageFile == null) throw 'Failed to capture image';
 
-      // 实时同步当前的 carbonSaved 数值到分享文案中
       await Share.shareXFiles(
         [XFile(imageFile.path)],
         text: 'Check out my Eco Impact Grade ${widget.grade} on myCF! Total Carbon Footprint Saved: ${widget.carbonSaved.toStringAsFixed(1)} mg CO2e 🌱',
@@ -288,7 +302,6 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
                                               ),
                                             ),
                                             const SizedBox(width: 4),
-                                            // 实时绑定当前真实的碳减排数值
                                             Text(
                                               '${widget.carbonSaved.toStringAsFixed(1)} mg', 
                                               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amberAccent),
@@ -296,13 +309,15 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
                                           ],
                                         ),
                                         const SizedBox(height: 6),
-                                        LinearProgressIndicator(
-                                          value: 0.95,
-                                          backgroundColor: Colors.white24,
-                                          color: gradeColor,
-                                          minHeight: 5,
-                                        ),
-                                        const SizedBox(height: 6),
+                                        if (widget.carbonSaved > 0) ...[
+                                          LinearProgressIndicator(
+                                            value: 0.95,
+                                            backgroundColor: Colors.white24,
+                                            color: gradeColor,
+                                            minHeight: 5,
+                                          ),
+                                          const SizedBox(height: 6),
+                                        ],
                                         const Text('🌱 Leveling up the planet with myCF.', style: TextStyle(fontSize: 8.5, fontStyle: FontStyle.italic, color: Colors.white70)),
                                       ],
                                     ),

@@ -1,14 +1,48 @@
-// lib/dashboard_screen.dart
+// lib/screens/dashboard_screen.dart
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'setting_screen.dart'; 
-import 'hardware_status_manager.dart'; 
+import 'setting_screen.dart';
+import 'hardware_status_manager.dart';
 
 import 'calculator_carbon.dart';
 import 'calculator_hydration.dart';
 import 'calculator_stability.dart';
+
+enum CarbonUnit { mg, g, kg }
+
+class UnitManager {
+  static CarbonUnit currentUnit = CarbonUnit.mg;
+
+  static void toggleUnit() {
+    if (currentUnit == CarbonUnit.mg) {
+      currentUnit = CarbonUnit.g;
+    } else if (currentUnit == CarbonUnit.g) {
+      currentUnit = CarbonUnit.kg;
+    } else {
+      currentUnit = CarbonUnit.mg;
+    }
+  }
+
+  static String format(double mgValue) {
+    if (currentUnit == CarbonUnit.kg) {
+      return '${(mgValue / 1000000).toStringAsFixed(4)} kg CO₂ e';
+    } else if (currentUnit == CarbonUnit.g) {
+      return '${(mgValue / 1000).toStringAsFixed(1)} g CO₂ e';
+    } else {
+      return '${mgValue.toStringAsFixed(1)} mg CO₂ e';
+    }
+  }
+
+  static String get unitLabel {
+    switch (currentUnit) {
+      case CarbonUnit.kg: return 'Unit: kg';
+      case CarbonUnit.g: return 'Unit: g';
+      case CarbonUnit.mg: return 'Unit: mg';
+    }
+  }
+}
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -19,38 +53,48 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAliveClientMixin {
   @override
-  bool get wantKeepAlive => true; // 👑 保持页面滚动位置记忆
+  bool get wantKeepAlive => true;
 
   double _carbonSaved = 0.0;
-  double _moisture = 62.9;
-  int _stabilityScore = 90;
-  double? _temperature; 
-  double? _humidity;    
-  String? _lastRecordedTimeString; 
-  bool _isLoadingDHT = true; 
-  RealtimeChannel? _statusSubscription;
-  RealtimeChannel? _systemControlSubscription; 
+  double _moisture = 0.0;
+  double _stabilityScore = 0.0;
+  double? _temperature;
+  double? _humidity;
+  String? _lastRecordedTimeString;
+  bool _isLoadingDHT = true;
+  RealtimeChannel? _dhtSubscription;
+  RealtimeChannel? _systemControlSubscription;
+  RealtimeChannel? _ecoHistorySubscription;
+  RealtimeChannel? _plantsSubscription;
   
   bool _isWaterLevelNormal = true;
   double _waterPercentage = 100.0;
-  bool _hasTriggeredWaterAlert = false; 
+  bool _hasTriggeredWaterAlert = false;
   
   Timer? _offlineCheckTimer;
+  Timer? _realtimeCarbonTimer;
   DateTime? _lastDataUpdateTime;
 
   @override
   void initState() {
     super.initState();
-    HardwareStatusManager.isDhtConnected = false; 
+    HardwareStatusManager.isDhtConnected = false;
     
     _initData();
-    _fetchTotalCarbonFromDatabase();
-    _fetchLatestDHTData(); 
-    _fetchWaterTankStatus(); 
+    _fetchCarbonFootprintForCurrentUser();
+    _fetchLatestDHTData();
+    _fetchUserPlantsAverageHydration();
+    _fetchWaterTankStatus();
     _initSupabaseRealtime();
     
     _offlineCheckTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       _checkConnectivity();
+    });
+
+    _realtimeCarbonTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        _fetchCarbonFootprintForCurrentUser();
+      }
     });
   }
 
@@ -79,17 +123,14 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     if (_lastDataUpdateTime != null) {
       final now = DateTime.now();
       final diff = now.difference(_lastDataUpdateTime!).inSeconds;
-      
-      // 👑 12秒缓冲区：平衡灵敏度与防反复横跳
       bool isConnected = (diff >= 0 && diff < 12);
-      
       String updatedRelativeTime = _getRelativeTime(_lastDataUpdateTime!);
 
       if (HardwareStatusManager.isDhtConnected != isConnected || _lastRecordedTimeString != updatedRelativeTime) {
         if (mounted) {
           setState(() {
             HardwareStatusManager.isDhtConnected = isConnected;
-            _lastRecordedTimeString = updatedRelativeTime; 
+            _lastRecordedTimeString = updatedRelativeTime;
           });
         }
       }
@@ -99,6 +140,107 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   Future<void> _initData() async {
     await UserProfileCache.load();
     if (mounted) setState(() {});
+  }
+
+  Future<void> _fetchCarbonFootprintForCurrentUser() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+
+      final plantsResponse = await supabase
+          .from('plants')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('status', 'active');
+
+      List<dynamic> activePlants = plantsResponse ?? [];
+
+      final controlResponse = await supabase
+          .from('system_control')
+          .select('pump_run_seconds')
+          .eq('id', 1)
+          .maybeSingle();
+
+      int pumpSeconds = int.tryParse(controlResponse?['pump_run_seconds']?.toString() ?? '10') ?? 10;
+
+      double totalNetCarbon = CarbonCalculator.calculateTotalCarbon(
+        activePlants, 
+        _moisture, 
+        pumpSeconds
+      );
+
+      if (mounted) setState(() => _carbonSaved = totalNetCarbon);
+    } catch (e) {
+      debugPrint('Fetch carbon footprint error: $e');
+    }
+  }
+
+  Future<void> _fetchUserPlantsAverageHydration() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+
+      final plantsResponse = await supabase
+          .from('plants')
+          .select('slot_number')
+          .eq('user_id', user.id)
+          .eq('status', 'active');
+
+      if (plantsResponse != null && (plantsResponse as List).isNotEmpty) {
+        List<int> activeSlots = [];
+        for (var item in plantsResponse) {
+          int slot = int.tryParse(item['slot_number'].toString()) ?? 1;
+          if (!activeSlots.contains(slot)) activeSlots.add(slot);
+        }
+
+        final hardwareResponse = await supabase
+            .from('hardware_status')
+            .select('slot_number, moisture_level')
+            .eq('user_id', user.id);
+
+        if (hardwareResponse != null && (hardwareResponse as List).isNotEmpty) {
+          double totalMoisture = 0.0;
+          int count = 0;
+
+          for (int slot in activeSlots) {
+            final matches = (hardwareResponse as List).where(
+              (row) => int.tryParse(row['slot_number'].toString()) == slot,
+            );
+            
+            if (matches.isNotEmpty) {
+              final latestMatch = matches.last;
+              double m = double.tryParse(latestMatch['moisture_level'].toString()) ?? 0.0;
+              totalMoisture += m;
+              count++;
+            }
+          }
+
+          if (count > 0) {
+            double avgMoisture = totalMoisture / count;
+            double calculatedHydration = HydrationCalculator.calculatePercentage(avgMoisture);
+            double calculatedScore = StabilityCalculator.calculateScore(calculatedHydration);
+
+            if (mounted) {
+              setState(() {
+                _moisture = calculatedHydration;
+                _stabilityScore = calculatedScore;
+              });
+            }
+          }
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _moisture = 0.0;
+            _stabilityScore = 0.0;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Fetch user active plants average hydration error: $e');
+    }
   }
 
   Future<void> _fetchWaterTankStatus() async {
@@ -114,7 +256,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
       if (response != null && mounted) {
         String? recordUserId = response['current_user_id']?.toString();
-        // 👑 严格按当前登录用户隔离：只有当这条水箱状态明确属于当前登录用户时，才允许触发警报
         bool isForThisUser = (currentUser != null && recordUserId == currentUser.id);
 
         var rawNormal = response['is_water_normal'];
@@ -134,32 +275,17 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
           _waterPercentage = pct;
         });
 
-        // 👑 只有当水位确实是 Empty 且属于当前登录用户时才报警；若恢复 Normal 则重置
         if (!isNormal && isForThisUser) {
           if (!_hasTriggeredWaterAlert) {
             _hasTriggeredWaterAlert = true;
             HardwareStatusManager.triggerTankEmptyAlert();
           }
         } else if (isNormal) {
-          _hasTriggeredWaterAlert = false; 
+          _hasTriggeredWaterAlert = false;
         }
       }
     } catch (e) {
       debugPrint('Fetch water tank status error: $e');
-    }
-  }
-
-  Future<void> _fetchTotalCarbonFromDatabase() async {
-    try {
-      final supabase = Supabase.instance.client;
-      final response = await supabase.from('eco_impact_history').select('saved_amount');
-
-      if (response != null && (response as List).isNotEmpty) {
-        double total = CarbonCalculator.calculateTotal(response);
-        if (mounted) setState(() => _carbonSaved = total);
-      }
-    } catch (e) {
-      debugPrint('Database carbon fetch error: $e');
     }
   }
 
@@ -178,27 +304,20 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         
         if (timeStr != null) {
           DateTime lastTime = DateTime.parse(timeStr.replaceAll('Z', '').replaceAll(RegExp(r'[+-]\d{2}:\d{2}$'), ''));
-          _lastDataUpdateTime = lastTime; 
-          
+          _lastDataUpdateTime = lastTime;
           String relativeTime = _getRelativeTime(lastTime);
           int diffSeconds = DateTime.now().difference(lastTime).inSeconds;
-          
-          // 👑 初始化判断采用 12 秒缓冲区
           bool isOnline = (diffSeconds >= 0 && diffSeconds < 12);
 
           double rawHum = double.tryParse(latest['humidity']?.toString() ?? '62.9') ?? 62.9;
-          double calculatedHydration = HydrationCalculator.calculatePercentage(rawHum);
-          int calculatedScore = StabilityCalculator.calculateScore(calculatedHydration);
 
           if (mounted) {
             setState(() {
               _temperature = double.tryParse(latest['temperature']?.toString() ?? '');
               _humidity = rawHum;
-              _moisture = calculatedHydration; 
-              _stabilityScore = calculatedScore; 
               _lastRecordedTimeString = relativeTime;
               HardwareStatusManager.isDhtConnected = isOnline;
-              _isLoadingDHT = false; 
+              _isLoadingDHT = false;
             });
           }
         }
@@ -206,7 +325,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         if (mounted) {
           setState(() {
             HardwareStatusManager.isDhtConnected = false;
-            _isLoadingDHT = false; 
+            _isLoadingDHT = false;
           });
         }
       }
@@ -215,14 +334,14 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
       if (mounted) {
         setState(() {
           HardwareStatusManager.isDhtConnected = false;
-          _isLoadingDHT = false; 
+          _isLoadingDHT = false;
         });
       }
     }
   }
 
   void _initSupabaseRealtime() {
-    _statusSubscription = Supabase.instance.client
+    _dhtSubscription = Supabase.instance.client
         .channel('public:dht11_logs_channel')
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
@@ -240,15 +359,11 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
               
               String relativeTime = _getRelativeTime(_lastDataUpdateTime!);
               double rawHum = double.tryParse(data['humidity']?.toString() ?? '62.9') ?? 62.9;
-              double calculatedHydration = HydrationCalculator.calculatePercentage(rawHum);
-              int calculatedScore = StabilityCalculator.calculateScore(calculatedHydration);
 
               if (mounted) {
                 setState(() {
                   _temperature = double.tryParse(data['temperature']?.toString() ?? '');
                   _humidity = rawHum;
-                  _moisture = calculatedHydration;
-                  _stabilityScore = calculatedScore;
                   _lastRecordedTimeString = relativeTime;
                   HardwareStatusManager.isDhtConnected = true;
                   _isLoadingDHT = false;
@@ -259,7 +374,31 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         )
         .subscribe();
 
-    // 👑 实时监听 system_control 水箱状态变化，完美支持 Full <-> Empty 双向切换与用户严格隔离
+    _plantsSubscription = Supabase.instance.client
+        .channel('public:plants_hydration_channel')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'plants',
+          callback: (_) {
+            _fetchUserPlantsAverageHydration();
+            _fetchCarbonFootprintForCurrentUser();
+          },
+        )
+        .subscribe();
+
+    _ecoHistorySubscription = Supabase.instance.client
+        .channel('public:eco_history_dashboard_channel')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'eco_impact_history',
+          callback: (_) {
+            _fetchCarbonFootprintForCurrentUser();
+          },
+        )
+        .subscribe();
+
     _systemControlSubscription = Supabase.instance.client
         .channel('public:system_control_water_channel_v7')
         .onPostgresChanges(
@@ -290,7 +429,8 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
                 _waterPercentage = pct;
               });
 
-              // 👑 双向触发控制：只有当前登录用户匹配且水箱空了才报警；一旦变成 Normal/Full，立刻重置报警锁并双向刷新为满水状态
+              _fetchCarbonFootprintForCurrentUser();
+
               if (!isNormal && isForThisUser) {
                 if (!_hasTriggeredWaterAlert) {
                   _hasTriggeredWaterAlert = true;
@@ -308,19 +448,18 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   @override
   void dispose() {
     _offlineCheckTimer?.cancel();
-    if (_statusSubscription != null) {
-      Supabase.instance.client.removeChannel(_statusSubscription!);
-    }
-    if (_systemControlSubscription != null) {
-      Supabase.instance.client.removeChannel(_systemControlSubscription!);
-    }
+    _realtimeCarbonTimer?.cancel();
+    if (_dhtSubscription != null) Supabase.instance.client.removeChannel(_dhtSubscription!);
+    if (_systemControlSubscription != null) Supabase.instance.client.removeChannel(_systemControlSubscription!);
+    if (_ecoHistorySubscription != null) Supabase.instance.client.removeChannel(_ecoHistorySubscription!);
+    if (_plantsSubscription != null) Supabase.instance.client.removeChannel(_plantsSubscription!);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // 👑 保持页面滚动位置记忆
-    const Color primaryDarkGreen = Color(0xFF2C4A3E); 
+    super.build(context);
+    const Color primaryDarkGreen = Color(0xFF2C4A3E);
     const Color softIvoryWhite = Color(0xFFF9FBFA);
 
     bool isAvatarLocal = UserProfileCache.avatarPath.isNotEmpty && (UserProfileCache.avatarPath.startsWith('/') || UserProfileCache.avatarPath.startsWith('file://'));
@@ -332,7 +471,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     String humStr = _isLoadingDHT ? 'loading' : (_humidity != null ? '${_humidity!.toStringAsFixed(0)} %' : '-- %');
 
     return Scaffold(
-      backgroundColor: Colors.transparent, 
+      backgroundColor: Colors.transparent,
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -340,7 +479,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
             Container(
               width: double.infinity,
               decoration: const BoxDecoration(
-                color: primaryDarkGreen, 
+                color: primaryDarkGreen,
                 borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(20),
                   bottomRight: Radius.circular(20),
@@ -421,16 +560,59 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
                   const SizedBox(height: 14),
                   _buildCard(softIvoryWhite, Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Image.asset('assets/my_ic_carbonfootprint.png', width: 36, height: 36, color: primaryDarkGreen),
-                      const SizedBox(width: 14),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Total Carbon Footprint Saved', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black54)),
-                          const SizedBox(height: 4),
-                          Text('${_carbonSaved.toStringAsFixed(1)} mg CO₂ e', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87)),
-                        ],
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: Image.asset('assets/my_ic_carbonfootprint.png', width: 36, height: 36, color: primaryDarkGreen),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Expanded(
+                                  child: Text(
+                                    'Total Carbon Footprint Saved', 
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black54),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      UnitManager.toggleUnit();
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: primaryDarkGreen,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      UnitManager.unitLabel,
+                                      style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                UnitManager.format(_carbonSaved), 
+                                style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: Colors.black87),
+                              ),
+                            ),
+                          ],
+                        ),
                       )
                     ],
                   )),
@@ -441,7 +623,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
                         alignment: Alignment.center,
                         children: [
                           SizedBox(height: 110, width: 110, child: CircularProgressIndicator(value: _moisture / 100, strokeWidth: 10, backgroundColor: Colors.white.withOpacity(0.5), color: const Color(0xFF5CB85C))),
-                          Text('$_moisture', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+                          Text('${_moisture.toStringAsFixed(0)}%', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
                         ],
                       ),
                       const SizedBox(height: 14),
@@ -456,7 +638,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
                         alignment: Alignment.center,
                         children: [
                           SizedBox(height: 100, width: 100, child: CircularProgressIndicator(value: _stabilityScore / 100, strokeWidth: 8, backgroundColor: Colors.white.withOpacity(0.5), color: const Color(0xFFEC5B5B))),
-                          Text('$_stabilityScore / 100', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+                          Text('${_stabilityScore.toStringAsFixed(1)} / 100', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
                         ],
                       ),
                       const SizedBox(height: 12),
