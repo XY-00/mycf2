@@ -59,6 +59,9 @@ class HardwareStatusManager {
               bool isNormal = data['is_water_normal'] ?? true;
               if (_lastWaterNormalState && !isNormal) {
                 triggerTankEmptyAlert();
+              } else if (!_lastWaterNormalState && isNormal) {
+                // 👑 满水/水位恢复正常时，自动停止循环警报声
+                _audioPlayer.stop();
               }
               _lastWaterNormalState = isNormal;
               _notifyListeners();
@@ -104,6 +107,8 @@ class HardwareStatusManager {
   static Future<void> triggerTankEmptyAlert() async {
     try {
       await _audioPlayer.stop();
+      // 👑 设置为循环播放模式，直到水位恢复正常才停止
+      await _audioPlayer.setReleaseMode(ReleaseMode.loop);
       await _audioPlayer.play(UrlSource('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
     } catch (e) {
       debugPrint('Audio play error: $e');

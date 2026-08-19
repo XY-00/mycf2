@@ -123,7 +123,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     if (_lastDataUpdateTime != null) {
       final now = DateTime.now();
       final diff = now.difference(_lastDataUpdateTime!).inSeconds;
-      // 严格设定：7秒内有更新算在线，超过7秒算离线
       bool isConnected = (diff >= 0 && diff < 7);
       String updatedRelativeTime = _getRelativeTime(_lastDataUpdateTime!);
 
@@ -247,18 +246,13 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   Future<void> _fetchWaterTankStatus() async {
     try {
       final supabase = Supabase.instance.client;
-      final currentUser = supabase.auth.currentUser;
-
       final response = await supabase
           .from('system_control')
-          .select('is_water_normal, water_percentage, current_user_id')
+          .select('is_water_normal, water_percentage')
           .eq('id', 1)
           .maybeSingle();
 
       if (response != null && mounted) {
-        String? recordUserId = response['current_user_id']?.toString();
-        bool isForThisUser = (currentUser != null && recordUserId == currentUser.id);
-
         var rawNormal = response['is_water_normal'];
         bool isNormal = true;
         if (rawNormal is bool) {
@@ -276,12 +270,12 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
           _waterPercentage = pct;
         });
 
-        if (!isNormal && isForThisUser) {
+        if (!isNormal) {
           if (!_hasTriggeredWaterAlert) {
             _hasTriggeredWaterAlert = true;
             HardwareStatusManager.triggerTankEmptyAlert();
           }
-        } else if (isNormal) {
+        } else {
           _hasTriggeredWaterAlert = false;
         }
       }
@@ -308,7 +302,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
           _lastDataUpdateTime = lastTime;
           String relativeTime = _getRelativeTime(lastTime);
           int diffSeconds = DateTime.now().difference(lastTime).inSeconds;
-          bool isOnline = (diffSeconds >= 0 && diffSeconds < 7); // 严格 7 秒判定
+          bool isOnline = (diffSeconds >= 0 && diffSeconds < 7);
 
           double rawHum = double.tryParse(latest['humidity']?.toString() ?? '62.9') ?? 62.9;
 
@@ -400,8 +394,9 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         )
         .subscribe();
 
+    // 👑 核心修复：实时监听 system_control 变动，确保水箱变为 0% 时瞬间触发红色警告与声音
     _systemControlSubscription = Supabase.instance.client
-        .channel('public:system_control_water_channel_v7')
+        .channel('public:system_control_water_channel_v9')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
@@ -409,10 +404,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
           callback: (payload) {
             final data = payload.newRecord;
             if (data.isNotEmpty && mounted) {
-              final currentUser = Supabase.instance.client.auth.currentUser;
-              String? recordUserId = data['current_user_id']?.toString();
-              bool isForThisUser = (currentUser != null && recordUserId == currentUser.id);
-
               var rawNormal = data['is_water_normal'];
               bool isNormal = true;
               if (rawNormal is bool) {
@@ -432,12 +423,12 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
 
               _fetchCarbonFootprintForCurrentUser();
 
-              if (!isNormal && isForThisUser) {
+              if (!isNormal) {
                 if (!_hasTriggeredWaterAlert) {
                   _hasTriggeredWaterAlert = true;
                   HardwareStatusManager.triggerTankEmptyAlert();
                 }
-              } else if (isNormal) {
+              } else {
                 _hasTriggeredWaterAlert = false;
               }
             }

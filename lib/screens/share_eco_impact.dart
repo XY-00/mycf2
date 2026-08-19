@@ -1,4 +1,4 @@
-// lib/share_eco_impact.dart
+// lib/screens/share_eco_impact.dart
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -49,19 +49,11 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
       android: initializationSettingsAndroid,
     );
 
-    // 👑 监听通知点击事件：考官点击通知时，直接调起系统查看刚才保存的图片
-    await _notificationsPlugin.initialize(
-      initializationSettings,
-      onDidReceiveNotificationResponse: (NotificationResponse response) async {
-        if (response.payload != null && response.payload!.isNotEmpty) {
-          await Share.shareXFiles([XFile(response.payload!)], text: 'Here is your downloaded myCF Eco Impact image.');
-        }
-      },
-    );
+    await _notificationsPlugin.initialize(initializationSettings);
   }
 
-  /// 👑 带有图片文件路径（payload）的系统通知，点击即可打开查看照片
-  Future<void> _showDownloadNotification(String imagePath) async {
+  /// 👑 顶部简洁的系统通知横幅，直接显示 "Successfully saved to your gallery!"
+  Future<void> _showSimpleSaveNotification() async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
       'mycf_eco_download_channel',
@@ -69,7 +61,7 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
       channelDescription: 'Notifications for successful eco impact image downloads',
       importance: Importance.max,
       priority: Priority.high,
-      ticker: 'myCF download success',
+      ticker: 'Successfully saved to your gallery!',
       icon: '@mipmap/ic_launcher',
       enableVibration: true,
       playSound: true,
@@ -80,10 +72,9 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
 
     await _notificationsPlugin.show(
       0,
-      'myCF Download Complete',
-      'myCF_Eco_Impact.png downloaded (Tap to view)',
+      'myCF',
+      'Successfully saved to your gallery!',
       platformChannelSpecifics,
-      payload: imagePath, // 把图片的本地路径带上，点击通知时直接触发预览
     );
   }
 
@@ -118,19 +109,12 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
       // 1. 保存到手机相册
       await Gal.putImage(imageFile.path);
 
-      // 2. 触发系统下载通知（带路径，点击可直接看图）
+      // 2. 触发干净简洁的顶部系统通知
       if (mounted) {
-        await _showDownloadNotification(imageFile.path);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Successfully saved to gallery & notification bar!')),
-        );
+        await _showSimpleSaveNotification();
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save failed: $e'), backgroundColor: Colors.red),
-        );
-      }
+      debugPrint('Save image error: $e');
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -145,15 +129,11 @@ class _ShareEcoImpactDialogState extends State<ShareEcoImpactDialog> {
 
       await Share.shareXFiles(
         [XFile(imageFile.path)],
-        text: 'Check out my Eco Impact Grade ${widget.grade} on myCF! Total Carbon Footprint Saved: ${widget.carbonSaved.toStringAsFixed(1)} mg CO2e 🌱',
+        text: 'Check out my Eco Impact Grade ${widget.grade} on myCF! Today Carbon Footprint Saved: ${widget.carbonSaved.toStringAsFixed(1)} mg CO2e 🌱',
         subject: 'My myCF Eco Impact',
       );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Share failed: $e'), backgroundColor: Colors.red),
-        );
-      }
+      debugPrint('Share image error: $e');
     } finally {
       if (mounted) setState(() => _isSharing = false);
     }

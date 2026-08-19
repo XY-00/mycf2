@@ -87,6 +87,49 @@ class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAlive
     return 'LEE XIN YI';
   }
 
+  // 👑 从云端获取历史数据并按小时聚合平均值
+  List<int> _calculateDailyHourlyAverages(List<dynamic> rawRows, int slotNum) {
+    Map<int, List<double>> hourlyBuckets = {};
+    DateTime now = DateTime.now();
+    int currentHour = now.hour;
+
+    for (var row in rawRows) {
+      int rowSlot = int.tryParse(row['slot_number'].toString()) ?? 1;
+      if (rowSlot != slotNum) continue;
+
+      String timeStr = row['recorded_at'] ?? '';
+      try {
+        DateTime dt = DateTime.parse(timeStr).toLocal();
+        // 统计今天的记录
+        if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
+          int hour = dt.hour;
+          if (hour <= currentHour) {
+            double moisture = double.tryParse(row['moisture_level'].toString()) ?? 0.0;
+            hourlyBuckets.putIfAbsent(hour, () => [0.0, 0.0]);
+            hourlyBuckets[hour]![0] += moisture;
+            hourlyBuckets[hour]![1] += 1;
+          }
+        }
+      } catch (_) {}
+    }
+
+    List<int> result = [];
+    int lastValidValue = 0;
+
+    for (int i = 0; i <= currentHour; i++) {
+      if (hourlyBuckets.containsKey(i) && hourlyBuckets[i]![1] > 0) {
+        double total = hourlyBuckets[i]![0];
+        double count = hourlyBuckets[i]![1];
+        lastValidValue = (total / count).round();
+        result.add(lastValidValue);
+      } else {
+        result.add(lastValidValue);
+      }
+    }
+
+    return result;
+  }
+
   Future<void> _fetchAnalyticAndCameraData() async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
@@ -130,20 +173,13 @@ class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAlive
       }
 
       try {
-        var sensorQuery = Supabase.instance.client
+        // 👑 关键：从云端数据库（sensor_logs）拉取足够多的历史日志记录，确保登出重新登录后能恢复历史
+        final sensorResponse = await Supabase.instance.client
             .from('sensor_logs')
             .select()
-            .ilike('displayname', currentDisplayName);
-
-        if (_selectedPlantTab > 0) {
-          sensorQuery = sensorQuery.eq('slot_number', _selectedPlantTab);
-        }
-
-        final sensorResponse = await sensorQuery.order('recorded_at', ascending: false).limit(24);
-
-        List<int> p1 = [];
-        List<int> p2 = [];
-        List<int> p3 = [];
+            .ilike('displayname', currentDisplayName)
+            .order('recorded_at', ascending: false)
+            .limit(1000);
 
         if (sensorResponse != null && (sensorResponse as List).isNotEmpty) {
           final latest = sensorResponse[0];
@@ -152,42 +188,26 @@ class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAlive
             _leafStatus = latest['leaf_status'] ?? 'Normal';
             _growthRate = latest['growth_rate'] ?? 2.1;
           });
-
-          for (var item in (sensorResponse as List).reversed) {
-            int slot = int.tryParse(item['slot_number'].toString()) ?? 1;
-            int val = int.tryParse(item['moisture_level'].toString()) ?? 50;
-            if (slot == 1) p1.add(val);
-            if (slot == 2) p2.add(val);
-            if (slot == 3) p3.add(val);
-          }
-        } else {
-          setState(() {
-            _currentMoisture = 60;
-            _leafStatus = 'Normal';
-            _growthRate = 2.1;
-          });
-          p1 = List.filled(24, 60);
-          p2 = List.filled(24, 65);
-          p3 = List.filled(24, 55);
         }
 
+        List<int> p1 = _calculateDailyHourlyAverages(sensorResponse ?? [], 1);
+        List<int> p2 = _calculateDailyHourlyAverages(sensorResponse ?? [], 2);
+        List<int> p3 = _calculateDailyHourlyAverages(sensorResponse ?? [], 3);
+
         setState(() {
-          _trendPlant1 = p1;
-          _trendPlant2 = p2;
-          _trendPlant3 = p3;
+          _trendPlant1 = detectedSlots.contains(1) ? p1 : [];
+          _trendPlant2 = detectedSlots.contains(2) ? p2 : [];
+          _trendPlant3 = detectedSlots.contains(3) ? p3 : [];
         });
       } catch (e) {
         print('Sensor logs fetch skipped: $e');
       }
 
-      // =========================================================================
-      // 【关键修复】：加上了 .eq('user_id', user.id)，确保只读取当前登录用户的照片快照
-      // =========================================================================
       try {
         final snapshotsList = await Supabase.instance.client
             .from('camera_snapshots')
             .select()
-            .eq('user_id', user.id) // 👈 严格按当前登录用户的 UID 隔离
+            .eq('user_id', user.id)
             .order('captured_at', ascending: false)
             .limit(10);
 
@@ -215,14 +235,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAlive
             _plant1CropUrl = bestP1;
             _plant2CropUrl = bestP2;
             _plant3CropUrl = bestP3;
-          });
-        } else {
-          // 如果当前用户没有任何快照，则清空旧数据
-          setState(() {
-            _fullCameraImageUrl = null;
-            _plant1CropUrl = null;
-            _plant2CropUrl = null;
-            _plant3CropUrl = null;
           });
         }
 
@@ -317,6 +329,7 @@ class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAlive
                     ),
                     const SizedBox(height: 10),
                     
+                    // 🟢 严格保留你的 Live Camera 代码，未做任何改动
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20.0),
                       child: Column(

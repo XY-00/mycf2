@@ -406,8 +406,8 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> with AutomaticKeepAli
     );
   }
 
-  /// 👑 真正生成带有精美配色、结构对齐的 PDF 或 Excel 报告
-  Future<void> _generateAndDownloadReport(String range, String format, {DateTime? customStart, DateTime? customEnd}) async {
+  /// 👑 只生成标准的 Excel (CSV) 格式，并保留 1 位小数
+  Future<void> _generateAndDownloadReport(String range, {DateTime? customStart, DateTime? customEnd}) async {
     try {
       List<Map<String, dynamic>> filteredRecords = _rawHistoryRecords;
       if (range == 'Recent one month') {
@@ -425,55 +425,20 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> with AutomaticKeepAli
       }
 
       final directory = await getApplicationDocumentsDirectory();
-      File file;
-      bool isPdf = format.toLowerCase().contains('pdf');
-      String extension = isPdf ? 'pdf' : 'xls'; 
-      String fileName = 'myCF_Report_${range.replaceAll(' ', '_')}.$extension';
+      String fileName = 'myCF_Report_${range.replaceAll(' ', '_')}.csv';
       filePath = '${directory.path}/$fileName';
 
-      // 👑 统一采用深绿色高级报表排版风格（对标精美参考图）
-      String styledTableHtml = '''
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/1999/xlink">
-      <head>
-        <meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
-        <style>
-          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 25px; color: #2C4A3E; background-color: #F9FBFA; }
-          .header-title { font-size: 20px; font-weight: bold; color: #2C4A3E; text-align: center; margin-bottom: 5px; }
-          .subtitle { font-size: 12px; color: #666; text-align: center; margin-bottom: 20px; }
-          .meta-box { background: #EAF2E8; border-left: 4px solid #2C4A3E; padding: 10px 15px; margin-bottom: 20px; font-size: 13px; border-radius: 4px; }
-          table { width: 100%; border-collapse: collapse; background: #ffffff; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-radius: 6px; overflow: hidden; }
-          th { background-color: #2C4A3E; color: #FFFFFF; font-weight: bold; text-align: center; padding: 12px 10px; font-size: 13px; border: 1px solid #1E3C32; }
-          td { text-align: center; padding: 10px; font-size: 12px; border: 1px solid #E0E0E0; color: #333333; }
-          tr:nth-child(even) { background-color: #F4F7F5; }
-          .grade-a { color: #2E7D32; font-weight: bold; }
-          .grade-b { color: #EF6C00; font-weight: bold; }
-          .grade-c { color: #C62828; font-weight: bold; }
-        </style>
-      </head>
-      <body>
-        <div class="header-title">myCF Carbon Footprint Report (${isPdf ? 'PDF Document' : 'Excel Spreadsheet'})</div>
-        <div class="subtitle">User: $_profileName | ID: $_profileId</div>
-        <div class="meta-box">
-          <b>Time Range:</b> $range<br>
-          <b>Total Records:</b> ${filteredRecords.length}<br>
-          <b>Exported Date:</b> ${DateTime.now().toIso8601String().substring(0, 10)}
-        </div>
-        <table>
-          <tr>
-            <th>Date</th>
-            <th>Carbon Footprint Saved (mg CO₂e)</th>
-            <th>Eco Grade</th>
-          </tr>
-      ''';
+      File file = File(filePath);
 
+      // 👑 严格保留 1 位小数格式化写入 CSV
+      StringBuffer csvContent = StringBuffer();
+      csvContent.writeln('Date,Carbon Footprint Saved (mg CO2e),Eco Grade');
       for (var r in filteredRecords) {
         String grade = _calculateGrade(r['saved']);
-        styledTableHtml += '<tr><td><b>${r['date']}</b></td><td>${r['saved'].toStringAsFixed(1)}</td><td class="grade-$grade">$grade</td></tr>';
+        String formattedVal = (r['saved'] as double).toStringAsFixed(1);
+        csvContent.writeln('${r['date']},$formattedVal,$grade');
       }
-      styledTableHtml += '</table></body></html>';
-
-      file = File(filePath);
-      await file.writeAsString(styledTableHtml);
+      await file.writeAsString(csvContent.toString());
 
       const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
         'mycf_download_channel',
@@ -482,19 +447,15 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> with AutomaticKeepAli
         priority: Priority.high,
         icon: '@mipmap/ic_launcher',
       );
+      
       await flutterLocalNotificationsPlugin.show(
         0,
         'myCF Download Complete',
-        '$fileName (Tap to open)',
+        '$fileName downloaded (Tap to view)',
         const NotificationDetails(android: androidDetails),
         payload: file.path,
       );
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Report downloaded! Check your notification bar to open.')),
-        );
-      }
     } catch (e) {
       debugPrint('Download error: $e');
     }
@@ -502,14 +463,11 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> with AutomaticKeepAli
 
   String filePath = '';
 
-  /// 👑 带有智能置灰（无记录日期及未来日期全部变灰不可选）的 Data Export 弹窗
   void _showDataExportDialog() {
     String selectedRange = 'Recent one month';
-    String selectedFormat = 'PDF';
     DateTime? customStartDate;
     DateTime? customEndDate;
 
-    // 收集所有有历史记录的日期集合（格式为 "YYYY-MM-DD"）
     Set<String> availableDates = _rawHistoryRecords.map((r) => r['date'].toString()).toSet();
 
     showModalBottomSheet(
@@ -521,7 +479,7 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> with AutomaticKeepAli
           builder: (context, setModalState) {
             return Container(
               padding: const EdgeInsets.all(20),
-              height: 520,
+              height: 460, // 调整高度以适应单选项
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -550,16 +508,14 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> with AutomaticKeepAli
                           onChanged: (val) async {
                             setModalState(() => selectedRange = val!);
                             
-                            // 👑 勾选 Custom 时弹出日历，自动置灰未来及没有记录的日子
                             if (val == 'Custom') {
                               DateTime? pickedStart = await showDatePicker(
                                 context: context,
                                 initialDate: DateTime.now(),
                                 firstDate: DateTime(2025),
-                                lastDate: DateTime.now(), // 不能选未来
+                                lastDate: DateTime.now(),
                                 selectableDayPredicate: (DateTime day) {
                                   String formattedDate = "${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}";
-                                  // 只有有记录的日子才可以点，其余全部置灰
                                   return availableDates.contains(formattedDate);
                                 },
                               );
@@ -569,7 +525,7 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> with AutomaticKeepAli
                                   context: context,
                                   initialDate: pickedStart,
                                   firstDate: pickedStart,
-                                  lastDate: DateTime.now(), // 不能选未来
+                                  lastDate: DateTime.now(),
                                   selectableDayPredicate: (DateTime day) {
                                     String formattedDate = "${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}";
                                     return availableDates.contains(formattedDate);
@@ -597,31 +553,6 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> with AutomaticKeepAli
                       ],
                     );
                   }),
-                  const SizedBox(height: 10),
-                  const Text('Select Format', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: ['PDF', 'Excel'].map((fmt) {
-                      bool isFormatSelected = (selectedFormat == fmt);
-                      return Expanded(
-                        child: GestureDetector(
-                          onTap: () => setModalState(() => selectedFormat = fmt),
-                          child: Container(
-                            margin: EdgeInsets.only(right: fmt == 'PDF' ? 8 : 0),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: isFormatSelected ? const Color(0xFF2C4A3E) : Colors.black12, width: isFormatSelected ? 2 : 1),
-                            ),
-                            child: Center(
-                              child: Text(fmt, style: TextStyle(fontWeight: FontWeight.bold, color: isFormatSelected ? const Color(0xFF2C4A3E) : Colors.black54)),
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
                   const Spacer(),
                   SizedBox(
                     width: double.infinity,
@@ -629,9 +560,10 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> with AutomaticKeepAli
                       style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2C4A3E), padding: const EdgeInsets.all(12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                       onPressed: () {
                         Navigator.pop(context);
-                        _generateAndDownloadReport(selectedRange, selectedFormat, customStart: customStartDate, customEnd: customEndDate);
+                        // 👑 直接导出 Excel，不再需要格式选择参数
+                        _generateAndDownloadReport(selectedRange, customStart: customStartDate, customEnd: customEndDate);
                       },
-                      child: const Text('Download Report', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: const Text('Download Excel Report', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   )
                 ],
@@ -795,6 +727,7 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> with AutomaticKeepAli
 
                       return Column(
                         children: [
+                          // 👑 月份汇总行（已将数值限制为 1 位小数）
                           GestureDetector(
                             onTap: () {
                               setState(() {
@@ -817,7 +750,7 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> with AutomaticKeepAli
                                   ),
                                   Expanded(
                                     flex: 4,
-                                    child: Text('${group['totalSaved'].toStringAsFixed(1)}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                    child: Text('${(group['totalSaved'] as double).toStringAsFixed(1)}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                                   ),
                                   Expanded(
                                     flex: 3,
@@ -866,9 +799,10 @@ class _EcoImpactScreenState extends State<EcoImpactScreen> with AutomaticKeepAli
                                       flex: 3,
                                       child: Text(displayDate, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                     ),
+                                    // 👑 单日明细行（已将数值限制为 1 位小数）
                                     Expanded(
                                       flex: 4,
-                                      child: Text('${itemSaved.toStringAsFixed(1)}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                      child: Text(itemSaved.toStringAsFixed(1), textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                     ),
                                     Expanded(
                                       flex: 3,

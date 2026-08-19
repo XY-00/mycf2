@@ -1,4 +1,4 @@
-// lib/moisture_chart_card.dart
+// lib/screens/moisture_chart_card.dart
 import 'package:flutter/material.dart';
 
 class MoistureChartCard extends StatefulWidget {
@@ -38,25 +38,30 @@ class _MoistureChartCardState extends State<MoistureChartCard> {
     }
   }
 
+  // 👑 核心：Monthly 和 Yearly 只在当前选中的日期/月份上赋值，其余保持 0，从而实现从 0 向上拉起
   List<int> _processDataForMode(List<int> sourceData) {
     if (sourceData.isEmpty) return [];
     int targetCount = _getXLabels().length;
     
     if (_selectedViewMode == 'daily') {
       if (sourceData.length >= 24) return sourceData;
-      List<int> fullDay = [];
-      for (int i = 0; i < 24; i++) {
-        double idx = (i / 23.0) * (sourceData.length - 1);
-        fullDay.add(sourceData[idx.round().clamp(0, sourceData.length - 1)]);
+      List<int> fullDay = List.filled(24, 0);
+      for (int i = 0; i < sourceData.length && i < 24; i++) {
+        fullDay[i] = sourceData[i];
       }
       return fullDay;
+    } else if (_selectedViewMode == 'monthly') {
+      List<int> monthlyResult = List.filled(targetCount, 0);
+      int latestVal = sourceData.where((v) => v > 0).isNotEmpty ? sourceData.where((v) => v > 0).last : 50;
+      int targetDayIndex = (_selectedDate.day - 1).clamp(0, targetCount - 1);
+      monthlyResult[targetDayIndex] = latestVal;
+      return monthlyResult;
     } else {
-      List<int> result = [];
-      for (int i = 0; i < targetCount; i++) {
-        double idx = (i / (targetCount - 1)) * (sourceData.length - 1);
-        result.add(sourceData[idx.round().clamp(0, sourceData.length - 1)]);
-      }
-      return result;
+      List<int> yearlyResult = List.filled(12, 0);
+      int latestVal = sourceData.where((v) => v > 0).isNotEmpty ? sourceData.where((v) => v > 0).last : 50;
+      int targetMonthIndex = (_selectedDate.month - 1).clamp(0, 11);
+      yearlyResult[targetMonthIndex] = latestVal;
+      return yearlyResult;
     }
   }
 
@@ -323,13 +328,12 @@ class MultiPlantTrendPainter extends CustomPainter {
     canvas.save();
     canvas.translate(0, topPadding);
 
-    // 👑 当在 All Plants 模式 (0) 时，在图表右上角绘制对应植物的图例颜色指示
     if (selectedTab == 0) {
       double rightEdge = leftPadding + chartWidth;
       List<Map<String, dynamic>> legends = [];
-      if (trendPlant1.isNotEmpty) legends.add({'label': 'P1', 'color': const Color(0xFF5CB85C)});
-      if (trendPlant2.isNotEmpty) legends.add({'label': 'P2', 'color': Colors.blueAccent});
-      if (trendPlant3.isNotEmpty) legends.add({'label': 'P3', 'color': Colors.orangeAccent});
+      if (trendPlant1.any((val) => val > 0)) legends.add({'label': 'P1', 'color': const Color(0xFF5CB85C)});
+      if (trendPlant2.any((val) => val > 0)) legends.add({'label': 'P2', 'color': Colors.blueAccent});
+      if (trendPlant3.any((val) => val > 0)) legends.add({'label': 'P3', 'color': Colors.orangeAccent});
 
       double totalLegendWidth = legends.length * 26.0;
       double legendX = rightEdge - totalLegendWidth;
@@ -392,104 +396,111 @@ class MultiPlantTrendPainter extends CustomPainter {
       return pts;
     }
 
-    void drawLineWithPoints(List<int> data, Color color) {
+    // 👑 核心：从底部的 0 开始，向上拉起一条竖线连接到有数据的位置
+    void drawLineFromZero(List<int> data, Color color) {
       if (data.isEmpty) return;
       List<Offset> pts = getPoints(data);
       final paint = Paint()..color = color..strokeWidth = 1.6..style = PaintingStyle.stroke;
       final path = Path();
+      bool hasStarted = false;
+
       for (int i = 0; i < pts.length; i++) {
-        if (i == 0) {
-          path.moveTo(pts[i].dx, pts[i].dy);
+        if (data[i] <= 0) continue;
+        if (!hasStarted) {
+          // 从图表底部的 0 开始直接拉起到该点
+          path.moveTo(pts[i].dx, chartHeight);
+          path.lineTo(pts[i].dx, pts[i].dy);
+          hasStarted = true;
         } else {
           path.lineTo(pts[i].dx, pts[i].dy);
         }
       }
-      canvas.drawPath(path, paint);
+      if (hasStarted) {
+        canvas.drawPath(path, paint);
+      }
     }
 
-    // 👑 关键逻辑：
-    // 当选 All Plants (0) 时：同时画出所有有数据的植物折线
-    // 当选 Plant 1 (1) 时：只画 Plant 1 折线
-    // 当选 Plant 2 (2) 时：只画 Plant 2 折线
-    // 当选 Plant 3 (3) 时：只画 Plant 3 折线
     if (selectedTab == 0) {
-      if (trendPlant1.isNotEmpty) drawLineWithPoints(trendPlant1, const Color(0xFF5CB85C));
-      if (trendPlant2.isNotEmpty) drawLineWithPoints(trendPlant2, Colors.blueAccent);
-      if (trendPlant3.isNotEmpty) drawLineWithPoints(trendPlant3, Colors.orangeAccent);
-    } else if (selectedTab == 1 && trendPlant1.isNotEmpty) {
-      drawLineWithPoints(trendPlant1, const Color(0xFF5CB85C));
-    } else if (selectedTab == 2 && trendPlant2.isNotEmpty) {
-      drawLineWithPoints(trendPlant2, Colors.blueAccent);
-    } else if (selectedTab == 3 && trendPlant3.isNotEmpty) {
-      drawLineWithPoints(trendPlant3, Colors.orangeAccent);
+      if (trendPlant1.any((v) => v > 0)) drawLineFromZero(trendPlant1, const Color(0xFF5CB85C));
+      if (trendPlant2.any((v) => v > 0)) drawLineFromZero(trendPlant2, Colors.blueAccent);
+      if (trendPlant3.any((v) => v > 0)) drawLineFromZero(trendPlant3, Colors.orangeAccent);
+    } else if (selectedTab == 1 && trendPlant1.any((v) => v > 0)) {
+      drawLineFromZero(trendPlant1, const Color(0xFF5CB85C));
+    } else if (selectedTab == 2 && trendPlant2.any((v) => v > 0)) {
+      drawLineFromZero(trendPlant2, Colors.blueAccent);
+    } else if (selectedTab == 3 && trendPlant3.any((v) => v > 0)) {
+      drawLineFromZero(trendPlant3, Colors.orangeAccent);
     }
 
-    // 👑 触摸交互联动：根据当前选中的 Tab 获取对应植物的数据进行 Tooltip 提示
+    // 触摸提示联动
     if (touchPosition != null) {
       Offset adjustedTouch = Offset(touchPosition!.dx, touchPosition!.dy - topPadding);
 
-      List<int> targetData = [];
-      String plantLabel = 'P1';
-      Color dotColor = const Color(0xFF5CB85C);
+      List<Map<String, dynamic>> activeLinesToTooltip = [];
 
-      if (selectedTab == 1) {
-        targetData = trendPlant1;
-        plantLabel = 'P1';
-        dotColor = const Color(0xFF5CB85C);
-      } else if (selectedTab == 2) {
-        targetData = trendPlant2;
-        plantLabel = 'P2';
-        dotColor = Colors.blueAccent;
-      } else if (selectedTab == 3) {
-        targetData = trendPlant3;
-        plantLabel = 'P3';
-        dotColor = Colors.orangeAccent;
-      } else {
-        // 在 All Plants 视图下，默认响应离触摸点最近的那条线的数值
-        List<Map<String, dynamic>> activeLines = [];
-        if (trendPlant1.isNotEmpty) activeLines.add({'data': trendPlant1, 'label': 'P1', 'color': const Color(0xFF5CB85C)});
-        if (trendPlant2.isNotEmpty) activeLines.add({'data': trendPlant2, 'label': 'P2', 'color': Colors.blueAccent});
-        if (trendPlant3.isNotEmpty) activeLines.add({'data': trendPlant3, 'label': 'P3', 'color': Colors.orangeAccent});
-
-        if (activeLines.isNotEmpty) {
-          targetData = activeLines[0]['data'];
-          plantLabel = activeLines[0]['label'];
-          dotColor = activeLines[0]['color'];
-        }
+      if (selectedTab == 1 && trendPlant1.any((v) => v > 0)) {
+        activeLinesToTooltip.add({'data': trendPlant1, 'label': 'P1', 'color': const Color(0xFF5CB85C)});
+      } else if (selectedTab == 2 && trendPlant2.any((v) => v > 0)) {
+        activeLinesToTooltip.add({'data': trendPlant2, 'label': 'P2', 'color': Colors.blueAccent});
+      } else if (selectedTab == 3 && trendPlant3.any((v) => v > 0)) {
+        activeLinesToTooltip.add({'data': trendPlant3, 'label': 'P3', 'color': Colors.orangeAccent});
+      } else if (selectedTab == 0) {
+        if (trendPlant1.any((v) => v > 0)) activeLinesToTooltip.add({'data': trendPlant1, 'label': 'P1', 'color': const Color(0xFF5CB85C)});
+        if (trendPlant2.any((v) => v > 0)) activeLinesToTooltip.add({'data': trendPlant2, 'label': 'P2', 'color': Colors.blueAccent});
+        if (trendPlant3.any((v) => v > 0)) activeLinesToTooltip.add({'data': trendPlant3, 'label': 'P3', 'color': Colors.orangeAccent});
       }
 
-      if (targetData.isNotEmpty) {
-        List<Offset> pts = getPoints(targetData);
-        if (pts.isNotEmpty) {
-          Offset closestPoint = pts.reduce((a, b) => 
+      if (activeLinesToTooltip.isNotEmpty) {
+        List<int> sampleData = activeLinesToTooltip[0]['data'];
+        List<Offset> samplePts = getPoints(sampleData);
+        if (samplePts.isNotEmpty) {
+          Offset closestPoint = samplePts.reduce((a, b) => 
             (a.dx - adjustedTouch.dx).abs() < (b.dx - adjustedTouch.dx).abs() ? a : b
           );
-
-          int closestIdx = pts.indexOf(closestPoint);
-          int moistureVal = targetData[closestIdx];
+          int closestIdx = samplePts.indexOf(closestPoint);
           String labelStr = xLabels[closestIdx.clamp(0, xLabels.length - 1)];
 
           final linePaint = Paint()..color = Colors.black54..strokeWidth = 1..style = PaintingStyle.stroke;
           canvas.drawLine(Offset(closestPoint.dx, 0), Offset(closestPoint.dx, chartHeight), linePaint);
 
-          final dotPaint = Paint()..color = dotColor..style = PaintingStyle.fill;
-          canvas.drawCircle(closestPoint, 5.0, dotPaint);
-          canvas.drawCircle(closestPoint, 5.0, Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 1.5);
+          List<String> tooltipLines = [];
+          for (var lineInfo in activeLinesToTooltip) {
+            List<int> data = lineInfo['data'];
+            String pLabel = lineInfo['label'];
+            Color dColor = lineInfo['color'];
 
-          String tooltipStr = '$plantLabel | $labelStr: $moistureVal%';
-          TextPainter tooltipTp = TextPainter(
-            text: TextSpan(text: tooltipStr, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold, fontFamily: 'Roboto')),
-            textDirection: TextDirection.ltr,
-          )..layout();
+            if (closestIdx < data.length && data[closestIdx] > 0) {
+              int val = data[closestIdx];
+              tooltipLines.add('$pLabel | $labelStr: $val%');
 
-          double boxWidth = tooltipTp.width + 10;
-          double boxHeight = tooltipTp.height + 6;
-          double boxX = (closestPoint.dx - boxWidth / 2).clamp(leftPadding, leftPadding + chartWidth - boxWidth);
-          double boxY = (closestPoint.dy - boxHeight - 8).clamp(0.0, chartHeight - boxHeight);
+              double norm = val / 100.0;
+              double y = chartHeight * (1.0 - norm);
+              Offset pt = Offset(closestPoint.dx, y);
 
-          RRect rrect = RRect.fromRectAndRadius(Rect.fromLTWH(boxX, boxY, boxWidth, boxHeight), const Radius.circular(4));
-          canvas.drawRRect(rrect, Paint()..color = Colors.black87);
-          tooltipTp.paint(canvas, Offset(boxX + 5, boxY + 3));
+              canvas.drawCircle(pt, 4.5, Paint()..color = dColor..style = PaintingStyle.fill);
+              canvas.drawCircle(pt, 4.5, Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 1.2);
+            }
+          }
+
+          if (tooltipLines.isNotEmpty) {
+            String fullTooltipText = tooltipLines.join('\n');
+            TextPainter tooltipTp = TextPainter(
+              text: TextSpan(
+                text: fullTooltipText, 
+                style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold, fontFamily: 'Roboto', height: 1.2)
+              ),
+              textDirection: TextDirection.ltr,
+            )..layout();
+
+            double boxWidth = tooltipTp.width + 12;
+            double boxHeight = tooltipTp.height + 8;
+            double boxX = (closestPoint.dx - boxWidth / 2).clamp(leftPadding, leftPadding + chartWidth - boxWidth);
+            double boxY = (closestPoint.dy - boxHeight - 8).clamp(0.0, chartHeight - boxHeight);
+
+            RRect rrect = RRect.fromRectAndRadius(Rect.fromLTWH(boxX, boxY, boxWidth, boxHeight), const Radius.circular(4));
+            canvas.drawRRect(rrect, Paint()..color = Colors.black87);
+            tooltipTp.paint(canvas, Offset(boxX + 6, boxY + 4));
+          }
         }
       }
     }
