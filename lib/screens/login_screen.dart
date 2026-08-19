@@ -1,3 +1,4 @@
+// lib/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'main_holder.dart';
@@ -164,14 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                             ),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: () {},
-                                child: const Text('Forgot Password ?', style: TextStyle(color: Colors.grey)),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 24), // 调整了原本顶在密码和按钮之间的间距
                             SizedBox(
                               width: double.infinity,
                               height: 48,

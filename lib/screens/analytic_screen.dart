@@ -1,4 +1,5 @@
 // lib/screens/analytic_screen.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'moisture_chart_card.dart';
@@ -33,10 +34,44 @@ class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAlive
   String? _plant2CropUrl;
   String? _plant3CropUrl;
 
+  Timer? _countdownTimer;
+  String _countdownText = '15 mins';
+
   @override
   void initState() {
     super.initState();
     _fetchAnalyticAndCameraData();
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startCountdown(String capturedAtStr, int intervalMinutes) {
+    _countdownTimer?.cancel();
+    DateTime? capturedTime;
+    try {
+      capturedTime = DateTime.parse(capturedAtStr);
+    } catch (_) {
+      capturedTime = DateTime.now();
+    }
+
+    final targetTime = capturedTime.add(Duration(minutes: intervalMinutes));
+
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      final now = DateTime.now();
+      final difference = targetTime.difference(now);
+
+      if (difference.isNegative) {
+        if (mounted) setState(() => _countdownText = 'Refreshing soon...');
+      } else {
+        int mins = difference.inMinutes;
+        int secs = difference.inSeconds % 60;
+        if (mounted) setState(() => _countdownText = '${mins}m ${secs}s');
+      }
+    });
   }
 
   String _getCurrentDisplayName() {
@@ -142,39 +177,76 @@ class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAlive
           _trendPlant3 = p3;
         });
       } catch (e) {
-        print('Sensor logs fetch skipped or empty: $e');
+        print('Sensor logs fetch skipped: $e');
       }
 
+      // =========================================================================
+      // 【关键修复】：加上了 .eq('user_id', user.id)，确保只读取当前登录用户的照片快照
+      // =========================================================================
       try {
-        final snapshotResponse = await Supabase.instance.client
+        final snapshotsList = await Supabase.instance.client
             .from('camera_snapshots')
             .select()
-            .ilike('displayname', currentDisplayName)
+            .eq('user_id', user.id) // 👈 严格按当前登录用户的 UID 隔离
             .order('captured_at', ascending: false)
-            .maybeSingle();
+            .limit(10);
 
-        if (snapshotResponse != null) {
+        String? bestFull;
+        String? bestP1;
+        String? bestP2;
+        String? bestP3;
+        String? latestCapturedAt;
+
+        if (snapshotsList != null && (snapshotsList as List).isNotEmpty) {
+          for (var row in snapshotsList) {
+            bestFull ??= row['full_image_url']?.toString();
+            bestP1 ??= row['plant_1_url']?.toString();
+            bestP2 ??= row['plant_2_url']?.toString();
+            bestP3 ??= row['plant_3_url']?.toString();
+            latestCapturedAt ??= row['captured_at']?.toString();
+
+            if (bestFull != null && bestP1 != null && bestP2 != null && bestP3 != null) {
+              break;
+            }
+          }
+
           setState(() {
-            _fullCameraImageUrl = snapshotResponse['full_image_url'];
-            _plant1CropUrl = snapshotResponse['plant_1_url'];
-            _plant2CropUrl = snapshotResponse['plant_2_url'];
-            _plant3CropUrl = snapshotResponse['plant_3_url'];
+            _fullCameraImageUrl = bestFull;
+            _plant1CropUrl = bestP1;
+            _plant2CropUrl = bestP2;
+            _plant3CropUrl = bestP3;
+          });
+        } else {
+          // 如果当前用户没有任何快照，则清空旧数据
+          setState(() {
+            _fullCameraImageUrl = null;
+            _plant1CropUrl = null;
+            _plant2CropUrl = null;
+            _plant3CropUrl = null;
           });
         }
-      } catch (_) {}
 
-      try {
-        final interventionResponse = await Supabase.instance.client
-            .from('intervention_logs')
-            .select()
-            .ilike('displayname', currentDisplayName);
-
-        if (interventionResponse != null && (interventionResponse as List).isNotEmpty) {
-          setState(() {
-            _successInterventions = interventionResponse.length;
-          });
+        int freqMins = 30;
+        try {
+          final sysRes = await Supabase.instance.client
+              .from('system_control')
+              .select('capture_frequency_minutes')
+              .eq('id', 1)
+              .maybeSingle();
+          if (sysRes != null && sysRes['capture_frequency_minutes'] != null) {
+            freqMins = sysRes['capture_frequency_minutes'];
+          }
+        } catch (e) {
+          debugPrint('Error fetching frequency from system_control: $e');
         }
-      } catch (_) {}
+
+        if (latestCapturedAt != null) {
+          _startCountdown(latestCapturedAt, freqMins);
+        }
+
+      } catch (e) {
+        print('Error fetching smart camera snapshots: $e');
+      }
 
       setState(() {
         _activeSlots = detectedSlots;
@@ -203,242 +275,225 @@ class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAlive
       backgroundColor: Colors.transparent,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: primaryDarkGreen))
-          : (_activeSlots.isEmpty ? _buildEmptyPlaceholder() : SingleChildScrollView(
-              child: Column(
-                children: [
-                  Container(
-                    width: double.infinity,
-                    decoration: const BoxDecoration(
-                      color: primaryDarkGreen, 
-                      borderRadius: BorderRadius.only(
-                        bottomLeft: Radius.circular(20),
-                        bottomRight: Radius.circular(20),
+          : (_activeSlots.isEmpty ? _buildEmptyPlaceholder() : RefreshIndicator(
+              color: primaryDarkGreen,
+              onRefresh: _fetchAnalyticAndCameraData,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      decoration: const BoxDecoration(
+                        color: primaryDarkGreen, 
+                        borderRadius: BorderRadius.only(
+                          bottomLeft: Radius.circular(20),
+                          bottomRight: Radius.circular(20),
+                        ),
                       ),
-                    ),
-                    child: SafeArea(
-                      bottom: false,
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 20.0, right: 20.0, top: 14.0, bottom: 16.0), 
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center, 
-                          children: const [
-                            Text('Analysis Report', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3, fontFamily: 'Roboto')),
-                          ],
+                      child: SafeArea(
+                        bottom: false,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 20.0, right: 20.0, top: 14.0, bottom: 16.0), 
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center, 
+                            children: const [
+                              Text('Analysis Report', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.3, fontFamily: 'Roboto')),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                    child: Row(
-                      children: [
-                        _buildTabButton('All Plants', 0),
-                        ..._activeSlots.map((slot) => _buildTabButton('Plant $slot', slot)),
-                      ],
+                    const SizedBox(height: 14),
+                    
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      child: Row(
+                        children: [
+                          _buildTabButton('All Plants', 0),
+                          ..._activeSlots.map((slot) => _buildTabButton('Plant $slot', slot)),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSectionTitle('LIVE CAMERA MONITOR'),
-                        Container(
-                          width: double.infinity, padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.black12),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6)],
-                          ),
-                          child: Column(
-                            children: [
-                              LayoutBuilder(
-                                builder: (context, constraints) {
-                                  double totalWidth = constraints.maxWidth;
-                                  int totalCount = _activeSlots.isEmpty ? 1 : _activeSlots.length;
-                                  double boxWidth = (totalWidth - (8 * (totalCount + 1))) / totalCount; 
+                    const SizedBox(height: 10),
+                    
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionTitle('LIVE CAMERA MONITOR'),
+                          Container(
+                            width: double.infinity, padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.black12),
+                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6)],
+                            ),
+                            child: Column(
+                              children: [
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    String? displayImage;
+                                    if (_selectedPlantTab == 1) {
+                                      displayImage = (_plant1CropUrl != null && _plant1CropUrl!.isNotEmpty) 
+                                          ? _plant1CropUrl 
+                                          : (_fullCameraImageUrl ?? _plant2CropUrl ?? _plant3CropUrl);
+                                    } else if (_selectedPlantTab == 2) {
+                                      displayImage = (_plant2CropUrl != null && _plant2CropUrl!.isNotEmpty) 
+                                          ? _plant2CropUrl 
+                                          : (_fullCameraImageUrl ?? _plant1CropUrl ?? _plant3CropUrl);
+                                    } else if (_selectedPlantTab == 3) {
+                                      displayImage = (_plant3CropUrl != null && _plant3CropUrl!.isNotEmpty) 
+                                          ? _plant3CropUrl 
+                                          : (_fullCameraImageUrl ?? _plant1CropUrl ?? _plant2CropUrl);
+                                    } else {
+                                      displayImage = (_fullCameraImageUrl != null && _fullCameraImageUrl!.isNotEmpty) 
+                                          ? _fullCameraImageUrl 
+                                          : (_plant1CropUrl ?? _plant2CropUrl ?? _plant3CropUrl);
+                                    }
 
-                                  String? displayImage = _fullCameraImageUrl;
-                                  if (_selectedPlantTab == 1) displayImage = _plant1CropUrl ?? _fullCameraImageUrl;
-                                  if (_selectedPlantTab == 2) displayImage = _plant2CropUrl ?? _fullCameraImageUrl;
-                                  if (_selectedPlantTab == 3) displayImage = _plant3CropUrl ?? _fullCameraImageUrl;
-
-                                  return Container(
-                                    width: double.infinity, height: 180,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(12), color: const Color(0xFFDCEAE4),
-                                      image: displayImage != null && displayImage.startsWith('http')
-                                          ? DecorationImage(image: NetworkImage(displayImage), fit: BoxFit.cover)
-                                          : const DecorationImage(image: AssetImage('assets/analytic_plant.jpg'), fit: BoxFit.cover),
-                                    ),
-                                    child: Stack(
-                                      children: [
-                                        Positioned(
-                                          top: 12, left: 12, 
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), 
-                                            decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)), 
-                                            child: Row(
-                                              children: const [
-                                                Icon(Icons.circle, color: Colors.white, size: 8),
-                                                SizedBox(width: 4),
-                                                Text('LIVE CAMERA', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, fontFamily: 'Roboto')),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                        for (int i = 0; i < _activeSlots.length; i++)
-                                          if (_selectedPlantTab == 0 || _selectedPlantTab == _activeSlots[i])
+                                    return Container(
+                                      width: double.infinity, height: 180,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(12), 
+                                        color: const Color(0xFFDCEAE4),
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Stack(
+                                          fit: StackFit.expand,
+                                          children: [
+                                            displayImage != null && displayImage.isNotEmpty && displayImage.startsWith('http')
+                                                ? Image.network(
+                                                    displayImage,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (context, error, stackTrace) {
+                                                      return const Center(
+                                                        child: Text('Image Load Failed', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                                                      );
+                                                    },
+                                                  )
+                                                : const Center(
+                                                    child: Text('No Camera Snapshot Available', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                                                  ),
                                             Positioned(
-                                              top: 45, 
-                                              left: 8 + (i * (boxWidth + 8)), 
-                                              child: _cvBox('plant ${_activeSlots[i]}', boxWidth, 110),
+                                              top: 12, left: 12, 
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), 
+                                                decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)), 
+                                                child: Row(
+                                                  children: const [
+                                                    Icon(Icons.circle, color: Colors.white, size: 8),
+                                                    SizedBox(width: 4),
+                                                    Text('LIVE CAMERA', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, fontFamily: 'Roboto')),
+                                                  ],
+                                                ),
+                                              ),
                                             ),
-                                        Positioned(
-                                          bottom: 8, left: 12, 
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), color: Colors.black54,
-                                            child: const Text('Next refresh in: 15 mins (Resolution: Medium)', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, fontFamily: 'Roboto')),
-                                          ),
+                                            Positioned(
+                                              bottom: 8, left: 12, 
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), 
+                                                color: Colors.black54,
+                                                child: Text('Next refresh in: $_countdownText', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, fontFamily: 'Roboto')),
+                                              ),
+                                            ),
+                                          ],
                                         ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionTitle('24-HOUR MOISTURE TREND (${_selectedPlantTab == 0 ? "OVERVIEW" : "PLANT $_selectedPlantTab"})'),
+                          MoistureChartCard(
+                            selectedTab: _selectedPlantTab,
+                            activeSlots: _activeSlots,
+                            trendPlant1: _trendPlant1,
+                            trendPlant2: _trendPlant2,
+                            trendPlant3: _trendPlant3,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionTitle('CARBON PROTECTION'),
+                          Container(
+                            width: double.infinity, padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Colors.white, 
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.black12),
+                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6)],
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF2F6F0), 
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.black.withOpacity(0.08)),
+                                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 3)],
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Text('$_successInterventions', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primaryDarkGreen, fontFamily: 'Roboto')),
+                                        const SizedBox(height: 2),
+                                        const Text('Successful Interventions', style: TextStyle(fontSize: 10.5, color: Colors.black54, fontWeight: FontWeight.w500, fontFamily: 'Roboto')),
                                       ],
                                     ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSectionTitle('VISUAL HEALTH VALIDATION'),
-                        Container(
-                          width: double.infinity, 
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white, 
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.black12),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6)],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(child: _buildGridItem('Leaf Color Anal...', _selectedPlantTab == 0 ? 'All channels normal' : 'Plant $_selectedPlantTab: $_leafStatus', Icons.spa_outlined)),
-                                  const SizedBox(width: 10),
-                                  Expanded(child: _buildGridItem('Growth Rate', _selectedPlantTab == 0 ? 'Avg: +2.1 cm / wk' : 'Plant $_selectedPlantTab: +$_growthRate cm', Icons.stacked_line_chart)),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  Expanded(child: _buildGridItem('Moisture Status', _selectedPlantTab == 0 ? 'All sensors online' : 'Plant $_selectedPlantTab: Stable ($_currentMoisture%)', Icons.opacity_outlined)),
-                                  const SizedBox(width: 10),
-                                  Expanded(child: _buildGridItem('System Performance', _selectedPlantTab == 0 ? 'Relays triggered: 3' : 'Pump $_selectedPlantTab active', Icons.notifications_active_outlined)),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSectionTitle('24-HOUR MOISTURE TREND (${_selectedPlantTab == 0 ? "OVERVIEW" : "PLANT $_selectedPlantTab"})'),
-                        MoistureChartCard(
-                          selectedTab: _selectedPlantTab,
-                          activeSlots: _activeSlots,
-                          trendPlant1: _trendPlant1,
-                          trendPlant2: _trendPlant2,
-                          trendPlant3: _trendPlant3,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSectionTitle('CARBON PROTECTION'),
-                        Container(
-                          width: double.infinity, padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white, 
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.black12),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.015), blurRadius: 6)],
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF2F6F0), 
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.black.withOpacity(0.08)),
-                                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 3)],
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      Text('$_successInterventions', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primaryDarkGreen, fontFamily: 'Roboto')),
-                                      const SizedBox(height: 2),
-                                      const Text('Successful Interventions', style: TextStyle(fontSize: 10.5, color: Colors.black54, fontWeight: FontWeight.w500, fontFamily: 'Roboto')),
-                                    ],
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF2F6F0), 
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.black.withOpacity(0.08)),
-                                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 3)],
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      const Text('100 %', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF3B7A69), fontFamily: 'Roboto')), 
-                                      const SizedBox(height: 2),
-                                      const Text('Protection Rate', style: TextStyle(fontSize: 10.5, color: Colors.black54, fontWeight: FontWeight.w500, fontFamily: 'Roboto')),
-                                    ],
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF2F6F0), 
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.black.withOpacity(0.08)),
+                                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 3)],
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        const Text('100 %', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF3B7A69), fontFamily: 'Roboto')), 
+                                        const SizedBox(height: 2),
+                                        const Text('Protection Rate', style: TextStyle(fontSize: 10.5, color: Colors.black54, fontWeight: FontWeight.w500, fontFamily: 'Roboto')),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
+                    const SizedBox(height: 24),
+                  ],
+                ),
               ),
             )),
     );
@@ -518,22 +573,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAlive
     );
   }
 
-  Widget _cvBox(String label, double width, double height) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1), color: Colors.redAccent, child: Text('$label 98%', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold, fontFamily: 'Roboto'))),
-        Container(
-          width: width, 
-          height: height, 
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.redAccent, width: 1.5),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildTabButton(String label, int index) {
     bool isSelected = _selectedPlantTab == index;
     return Expanded(
@@ -544,46 +583,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAlive
           decoration: BoxDecoration(color: isSelected ? const Color(0xFF2C4A3E) : Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: isSelected ? const Color(0xFF2C4A3E) : Colors.black12)),
           child: Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.black87, fontFamily: 'Roboto')),
         ),
-      ),
-    );
-  }
-
-  Widget _buildGridItem(String title, String desc, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      height: 52,
-      decoration: BoxDecoration(
-        color: const Color(0xFFF2F6F0), 
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black.withOpacity(0.08)), 
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start, 
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center, 
-            children: [
-              Icon(icon, size: 14, color: const Color(0xFF497E66)),
-              const SizedBox(width: 5),
-              Expanded(
-                child: Text(
-                  title, 
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E), fontFamily: 'Roboto'), 
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            desc, 
-            style: const TextStyle(fontSize: 10, color: Colors.black54, height: 1.1, fontFamily: 'Roboto'), 
-            maxLines: 1, 
-            overflow: TextOverflow.ellipsis
-          ),
-        ],
       ),
     );
   }

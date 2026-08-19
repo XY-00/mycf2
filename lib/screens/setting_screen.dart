@@ -7,7 +7,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'login_screen.dart';
 import 'hardware_status_manager.dart';
 
@@ -62,25 +61,11 @@ class SettingScreen extends StatefulWidget {
 class _SettingScreenState extends State<SettingScreen> with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true; 
-
-  static double _minimumMoistureStart = 59.0;
-  static double _maxMoistureStop = 80.0;
-  static String _selectedAutoMode = 'Full Auto';
   
   String _selectedFrequency = '30 min';
-  String _selectedQuality = 'Medium';
-
-  bool _autoLockPumpsOnEmpty = true;
-  bool _tankAlertSoundEnabled = true;
-
-  bool _isPumpActive = false;
-  int _remainingSeconds = 0;
-  Timer? _pumpTimer;
 
   final ImagePicker _picker = ImagePicker();
   static final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
-  
-  final AudioPlayer _audioPlayer = AudioPlayer();
 
   late final VoidCallback _statusListener;
 
@@ -89,6 +74,7 @@ class _SettingScreenState extends State<SettingScreen> with AutomaticKeepAliveCl
     super.initState();
     _initData();
     _initNotifications();
+    _fetchFrequencyFromDB();
 
     HardwareStatusManager.initNotifications(_notificationsPlugin);
     
@@ -104,14 +90,33 @@ class _SettingScreenState extends State<SettingScreen> with AutomaticKeepAliveCl
   @override
   void dispose() {
     HardwareStatusManager.removeListener(_statusListener);
-    _pumpTimer?.cancel();
-    _audioPlayer.dispose();
     super.dispose();
   }
 
   Future<void> _initData() async {
     await UserProfileCache.load();
     if (mounted) setState(() {});
+  }
+
+  Future<void> _fetchFrequencyFromDB() async {
+    try {
+      final res = await Supabase.instance.client
+          .from('system_control')
+          .select('capture_frequency_minutes')
+          .eq('id', 1)
+          .maybeSingle();
+      
+      if (res != null && res['capture_frequency_minutes'] != null) {
+        int mins = res['capture_frequency_minutes'];
+        if (mounted) {
+          setState(() {
+            _selectedFrequency = '$mins min';
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching frequency from system_control: $e');
+    }
   }
 
   void _initNotifications() async {
@@ -123,117 +128,6 @@ class _SettingScreenState extends State<SettingScreen> with AutomaticKeepAliveCl
     );
 
     await _notificationsPlugin.initialize(initializationSettings);
-  }
-
-  Future<void> _playAlarmSound() async {
-    if (!_tankAlertSoundEnabled) return;
-    try {
-      await _audioPlayer.stop();
-      await _audioPlayer.play(UrlSource('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'));
-    } catch (e) {
-      debugPrint('Audio play error: $e');
-    }
-  }
-
-  Future<void> _showSystemNotification(String title, String body, {bool playSound = true}) async {
-    if (playSound && _tankAlertSoundEnabled) {
-      _playAlarmSound(); 
-    }
-
-    final AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
-      'mycf_tank_alert_channel_id',
-      'myCF Water Tank & System Alerts',
-      channelDescription: 'Notifications for water tank storage and system alerts',
-      importance: Importance.max,
-      priority: Priority.high,
-      ticker: 'myCF Alert',
-      icon: '@mipmap/ic_launcher',
-      enableVibration: true,
-      playSound: false, 
-      styleInformation: BigTextStyleInformation(
-        body,
-        contentTitle: title,
-        htmlFormatContent: true,
-        htmlFormatContentTitle: true,
-      ),
-    );
-
-    final NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
-
-    await _notificationsPlugin.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      title,
-      body,
-      platformChannelSpecifics,
-    );
-  }
-
-  void _showModeChangeDialog(String modeName) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('System Mode Updated', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
-        content: Text('Successfully switched to $modeName mode.', style: const TextStyle(fontSize: 13, color: Colors.black87)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK', style: TextStyle(color: Color(0xFF2C4A3E), fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _simulateTankEmptyAlert() {
-    if (_isPumpActive) {
-      _pumpTimer?.cancel();
-      setState(() {
-        _isPumpActive = false;
-        _remainingSeconds = 0;
-      });
-    }
-
-    _showSystemNotification(
-      'CRITICAL WARNING: TANK EMPTY', 
-      'Float sensor detected water tank is empty! Water pumps have been automatically locked to prevent dry burning.',
-      playSound: true,
-    );
-  }
-
-  void _toggleManualPump() {
-    if (_isPumpActive) {
-      _pumpTimer?.cancel();
-      setState(() {
-        _isPumpActive = false;
-        _remainingSeconds = 0;
-      });
-      _showSystemNotification('Water Pump Stopped', 'Manual water pump has been stopped successfully.', playSound: false);
-    } else {
-      setState(() {
-        _isPumpActive = true;
-        _remainingSeconds = 10; 
-      });
-
-      _showSystemNotification('Water Pump Activated', 'Manual water pump activated for 10 seconds.', playSound: false);
-
-      _pumpTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (_remainingSeconds > 1) {
-          setState(() {
-            _remainingSeconds--;
-          });
-        } else {
-          timer.cancel();
-          setState(() {
-            _isPumpActive = false;
-            _remainingSeconds = 0;
-          });
-          _showSystemNotification('Water Pump Stopped', 'Water pump automatically stopped (Timer finished).', playSound: false);
-        }
-      });
-    }
   }
 
   void _openProfileEditSheet() {
@@ -412,74 +306,6 @@ class _SettingScreenState extends State<SettingScreen> with AutomaticKeepAliveCl
     );
   }
 
-  void _triggerSemiAutoNotification() {
-    _showSystemNotification('Semi Auto Alert', 'Soil moisture dropped below minimum moisture start threshold!', playSound: false);
-
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        backgroundColor: const Color(0xFFF7F5EA),
-        child: Container(
-          width: MediaQuery.of(context).size.width * 0.85,
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.notifications_active_rounded, color: Colors.orange, size: 26),
-                  SizedBox(width: 8),
-                  Text('Semi Auto Alert', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
-                ],
-              ),
-              const SizedBox(height: 14),
-              const Text(
-                'Soil moisture has dropped below the minimum moisture start threshold in Semi Auto mode.\n\nWould you like to trigger irrigation now, or ignore and water manually later?',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, height: 1.4, color: Colors.black87),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: Colors.grey)),
-                      ),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showSystemNotification('Semi Auto Ignored', 'Irrigation ignored. Switch to Manual mode to water later.', playSound: false);
-                      },
-                      child: const Text('Ignore', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2C4A3E),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showSystemNotification('Water Pump Activated', 'Water Pump activated successfully in Semi Auto!', playSound: false);
-                      },
-                      child: const Text('Pump Now', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -579,63 +405,6 @@ class _SettingScreenState extends State<SettingScreen> with AutomaticKeepAliveCl
                   HardwareStatusManager.buildStatusRow('Float Water Level Sensor', HardwareStatusManager.isFloatConnected),
                 ]),
 
-                _buildSectionTitle('OPERATION & CONTROL'),
-                _buildGroupPanel([
-                  Row(
-                    children: const [
-                      Icon(Icons.shutter_speed, size: 16, color: primaryGreen),
-                      SizedBox(width: 6),
-                      Text('System Mode', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      _buildModeBtn('Full Auto', _selectedAutoMode == 'Full Auto', () {
-                        setState(() => _selectedAutoMode = 'Full Auto');
-                        _showModeChangeDialog('Full Auto');
-                      }),
-                      _buildModeBtn('Semi Auto', _selectedAutoMode == 'Semi Auto', () {
-                        setState(() {
-                          _selectedAutoMode = 'Semi Auto';
-                          _triggerSemiAutoNotification();
-                        });
-                        _showModeChangeDialog('Semi Auto');
-                      }),
-                      _buildModeBtn('Manual', _selectedAutoMode == 'Manual', () {
-                        setState(() {
-                          _selectedAutoMode = 'Manual';
-                        });
-                        _showModeChangeDialog('Manual');
-                      }),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(children: const [Icon(Icons.waves, size: 14, color: Colors.black54), SizedBox(width: 4), Text('Minimum Moisture Start', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen))]),
-                      Text('${_minimumMoistureStart.toStringAsFixed(1)} %', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
-                    ],
-                  ),
-                  Slider(
-                    value: _minimumMoistureStart, min: 0, max: 100, activeColor: primaryGreen, inactiveColor: Colors.black12,
-                    onChanged: (val) => setState(() => _minimumMoistureStart = val),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(children: const [Icon(Icons.stop_circle_outlined, size: 14, color: Colors.black54), SizedBox(width: 4), Text('Max Moisture Stop Limit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen))]),
-                      Text('${_maxMoistureStop.toStringAsFixed(1)} %', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
-                    ],
-                  ),
-                  Slider(
-                    value: _maxMoistureStop, min: 50, max: 100, activeColor: primaryGreen, inactiveColor: Colors.black12,
-                    onChanged: (val) => setState(() => _maxMoistureStop = val),
-                  ),
-                ]),
-
                 _buildSectionTitle('CAMERA & VISION SETTINGS'),
                 _buildGroupPanel([
                   Row(
@@ -646,105 +415,24 @@ class _SettingScreenState extends State<SettingScreen> with AutomaticKeepAliveCl
                     ],
                   ),
                   const SizedBox(height: 10),
-                  _buildDropdownRow('Capture Frequency', _selectedFrequency, ['15 min', '30 min', '60 min'], (v) => setState(() => _selectedFrequency = v!)),
-                  const SizedBox(height: 8),
-                  _buildDropdownRow('Image Quality', _selectedQuality, ['Low', 'Medium', 'High'], (v) => setState(() => _selectedQuality = v!)),
+                  _buildDropdownRow('Capture Frequency', _selectedFrequency, ['15 min', '30 min', '60 min'], (v) async {
+                    setState(() => _selectedFrequency = v!);
+                    int mins = 30;
+                    if (v!.contains('15')) mins = 15;
+                    else if (v.contains('30')) mins = 30;
+                    else if (v.contains('60')) mins = 60;
+
+                    try {
+                      await Supabase.instance.client.from('system_control').update({
+                        'capture_frequency_minutes': mins
+                      }).eq('id', 1);
+                      debugPrint('Successfully updated frequency to $mins mins in system_control.');
+                    } catch (e) {
+                      debugPrint('Update frequency error: $e');
+                    }
+                  }),
                 ]),
 
-                _buildSectionTitle('MANUAL OVERRIDE'),
-                _buildGroupPanel([
-                  Row(
-                    children: const [
-                      Icon(Icons.warning_amber_rounded, size: 16, color: Colors.redAccent),
-                      SizedBox(width: 6),
-                      Text('Hardware Direct Control', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Expanded(child: Text('Water Pump Direct Control', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87))),
-                      SizedBox(
-                        height: 34,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: (_selectedAutoMode == 'Manual') 
-                                ? (_isPumpActive ? Colors.redAccent : const Color(0xFFC3BADB)) 
-                                : Colors.grey.shade300, 
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: const BorderSide(color: Colors.black38, width: 0.8))
-                          ),
-                          onPressed: (_selectedAutoMode == 'Manual') ? () => _toggleManualPump() : null,
-                          child: Text(
-                            _isPumpActive ? 'Stop Pump (${_remainingSeconds}s)' : 'Activate Pump', 
-                            style: TextStyle(
-                              color: (_selectedAutoMode == 'Manual') ? (_isPumpActive ? Colors.white : Colors.black87) : Colors.grey, 
-                              fontWeight: FontWeight.bold, 
-                              fontSize: 11
-                            ),
-                          ),
-                        ),
-                      )
-                    ],
-                  ),
-                  if (_selectedAutoMode != 'Manual')
-                    const Padding(
-                      padding: EdgeInsets.only(top: 6.0),
-                      child: Text('*(Switch System Mode to Manual to unlock override)*', style: TextStyle(fontSize: 10, color: Colors.redAccent, fontStyle: FontStyle.italic)),
-                    ),
-                ]),
-
-                _buildSectionTitle('WATER TANK STORAGE & PROTECTION'),
-                _buildGroupPanel([
-                  Row(
-                    children: const [
-                      Icon(Icons.water_drop_rounded, size: 16, color: Colors.blue),
-                      SizedBox(width: 6),
-                      Text('Float Water Level Sensor', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryGreen)),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Expanded(child: Text('Auto-Lock Pumps When Tank Empty', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87))),
-                      Switch(
-                        value: _autoLockPumpsOnEmpty, 
-                        activeColor: primaryGreen, 
-                        onChanged: (v) => setState(() => _autoLockPumpsOnEmpty = v),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Expanded(child: Text('Tank Empty Alert Sound & Banner', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87))),
-                      Switch(
-                        value: _tankAlertSoundEnabled, 
-                        activeColor: primaryGreen, 
-                        onChanged: (v) => setState(() => _tankAlertSoundEnabled = v),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 38,
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.redAccent),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      onPressed: () => _simulateTankEmptyAlert(),
-                      icon: const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 18),
-                      label: const Text('Test Tank Empty Alert (Simulate Sound)', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 12)),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text('*(When water tank is empty, system automatically locks water pumps and pushes a critical alert banner with sound)*', style: TextStyle(fontSize: 10, color: Colors.grey, fontStyle: FontStyle.italic)),
-                ]),
                 const SizedBox(height: 14),
 
                 InkWell(
@@ -821,23 +509,6 @@ class _SettingScreenState extends State<SettingScreen> with AutomaticKeepAliveCl
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: children,
-      ),
-    );
-  }
-
-  Widget _buildModeBtn(String label, bool isActive, VoidCallback onTap) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 2), padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: isActive ? const Color(0xFFBAC596) : Colors.white, 
-            border: Border.all(color: Colors.black38, width: 0.8), 
-            borderRadius: BorderRadius.circular(8)
-          ),
-          child: Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isActive ? Colors.black : Colors.black87)),
-        ),
       ),
     );
   }

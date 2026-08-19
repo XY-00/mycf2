@@ -51,6 +51,7 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> wit
     _currentAvatar = widget.initialAvatar;
     
     _fetchHardwareAndMoistureStatus();
+    _fetchPlantGrowthHistory(); 
 
     _pollingTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       _fetchHardwareAndMoistureStatus();
@@ -121,6 +122,67 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> wit
         });
       }
       print('Error fetching hardware status: $e');
+    }
+  }
+
+  Future<void> _fetchPlantGrowthHistory() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+
+      int currentSlot = widget.slotIndex + 1; 
+
+      final response = await Supabase.instance.client
+          .from('camera_snapshots')
+          .select()
+          .eq('user_id', user.id) 
+          .order('captured_at', ascending: false);
+
+      List<Map<String, dynamic>> snapshots = [];
+      if (response != null && (response as List).isNotEmpty) {
+        for (var row in response) {
+          String rawCapturedAt = row['captured_at'] ?? '';
+          if (rawCapturedAt.isNotEmpty) {
+            try {
+              DateTime snapshotTime = DateTime.parse(rawCapturedAt);
+              if (snapshotTime.isBefore(widget.initialDate)) {
+                continue;
+              }
+            } catch (_) {}
+          }
+
+          String? cropUrl;
+          if (currentSlot == 1) cropUrl = row['plant_1_url'];
+          else if (currentSlot == 2) cropUrl = row['plant_2_url'];
+          else if (currentSlot == 3) cropUrl = row['plant_3_url'];
+
+          if (cropUrl != null && cropUrl.toString().isNotEmpty) {
+            String formattedTime = rawCapturedAt;
+            try {
+              DateTime parsedDate = DateTime.parse(rawCapturedAt).toLocal();
+              formattedTime = "${parsedDate.year}-${parsedDate.month.toString().padLeft(2, '0')}-${parsedDate.day.toString().padLeft(2, '0')} ${parsedDate.hour.toString().padLeft(2, '0')}:${parsedDate.minute.toString().padLeft(2, '0')}";
+            } catch (_) {
+              if (rawCapturedAt.length >= 16) {
+                formattedTime = rawCapturedAt.substring(0, 16).replaceAll('T', ' ');
+              }
+            }
+
+            snapshots.add({
+              'url': cropUrl,
+              'captured_at': formattedTime,
+            });
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _growthSnapshots.clear();
+          _growthSnapshots.addAll(snapshots);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching growth history snapshots: $e');
     }
   }
 
@@ -304,9 +366,9 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> wit
       backgroundColor: const Color(0xFFF4F7F5),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.5,
+        initialChildSize: 0.6,
         minChildSize: 0.3,
-        maxChildSize: 0.8,
+        maxChildSize: 0.85,
         expand: false,
         builder: (context, scrollController) => Padding(
           padding: const EdgeInsets.all(20.0),
@@ -322,7 +384,7 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> wit
                       children: [
                         Text(_currentName, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E)), maxLines: 1, overflow: TextOverflow.ellipsis),
                         const SizedBox(height: 2),
-                        const Text('Growth History', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
+                        const Text('Growth History Gallery', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54)),
                       ],
                     ),
                   ),
@@ -335,11 +397,55 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> wit
                 child: _growthSnapshots.isEmpty
                     ? const Center(
                         child: Text(
-                          'No growth history yet',
+                          'No growth history snapshots yet',
                           style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold),
                         ),
                       )
-                    : ListView(controller: scrollController, children: const []),
+                    : GridView.builder(
+                        controller: scrollController,
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: 0.8,
+                        ),
+                        itemCount: _growthSnapshots.length,
+                        itemBuilder: (context, index) {
+                          final item = _growthSnapshots[index];
+                          String url = item['url'] ?? '';
+                          String timeStr = item['captured_at'] ?? '';
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.black12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: ClipRRect(
+                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                                    child: Image.network(
+                                      url,
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                      errorBuilder: (ctx, err, stack) => const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Text(
+                                    timeStr,
+                                    style: const TextStyle(fontSize: 10, color: Colors.black54, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
               ),
             ],
           ),
@@ -360,8 +466,12 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> wit
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5CB85C)),
             onPressed: () {
-              Navigator.pop(context); 
-              Navigator.pop(context, {'action': 'complete', 'moisture': _moistureLevel}); 
+              Navigator.pop(context); // 关闭弹窗
+              // 👑 核心修复：点击 Complete 后立刻跳出详情页，并将 action 和当前的 moisture 传给上一页
+              Navigator.pop(context, {
+                'action': 'complete', 
+                'moisture': _moistureLevel,
+              }); 
             },
             child: const Text('Yes, Complete', style: TextStyle(color: Colors.white)),
           ),
@@ -382,8 +492,12 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> wit
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () {
-              Navigator.pop(context); 
-              Navigator.pop(context, {'action': 'delete', 'moisture': _moistureLevel}); 
+              Navigator.pop(context); // 关闭弹窗
+              // 👑 核心修复：点击 Delete 后立刻跳出详情页，并将 action 和当前的 moisture 传给上一页
+              Navigator.pop(context, {
+                'action': 'delete', 
+                'moisture': _moistureLevel,
+              }); 
             },
             child: const Text('Delete', style: TextStyle(color: Colors.white)),
           ),
@@ -657,6 +771,53 @@ class _ActivePlantDetailsScreenState extends State<ActivePlantDetailsScreen> wit
                               : Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    SizedBox(
+                                      height: 125,
+                                      child: ListView.builder(
+                                        scrollDirection: Axis.horizontal,
+                                        itemCount: _growthSnapshots.length,
+                                        itemBuilder: (context, index) {
+                                          final item = _growthSnapshots[index];
+                                          String url = item['url'] ?? '';
+                                          String timeStr = item['captured_at'] ?? '';
+                                          return Container(
+                                            width: 100,
+                                            margin: const EdgeInsets.only(right: 10),
+                                            decoration: BoxDecoration(
+                                              borderRadius: BorderRadius.circular(10),
+                                              border: Border.all(color: Colors.black12),
+                                              color: Colors.white,
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Expanded(
+                                                  child: ClipRRect(
+                                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                                                    child: Image.network(
+                                                      url,
+                                                      fit: BoxFit.cover,
+                                                      width: double.infinity,
+                                                      errorBuilder: (ctx, err, stack) => const Center(child: Icon(Icons.broken_image, size: 20, color: Colors.grey)),
+                                                    ),
+                                                  ),
+                                                ),
+                                                Padding(
+                                                  padding: const EdgeInsets.all(5.0),
+                                                  child: Text(
+                                                    timeStr,
+                                                    style: const TextStyle(fontSize: 8.5, color: Colors.black54, fontWeight: FontWeight.bold),
+                                                    maxLines: 2,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
                                     Align(
                                       alignment: Alignment.centerRight,
                                       child: GestureDetector(

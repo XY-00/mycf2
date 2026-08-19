@@ -123,7 +123,8 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     if (_lastDataUpdateTime != null) {
       final now = DateTime.now();
       final diff = now.difference(_lastDataUpdateTime!).inSeconds;
-      bool isConnected = (diff >= 0 && diff < 12);
+      // 严格设定：7秒内有更新算在线，超过7秒算离线
+      bool isConnected = (diff >= 0 && diff < 7);
       String updatedRelativeTime = _getRelativeTime(_lastDataUpdateTime!);
 
       if (HardwareStatusManager.isDhtConnected != isConnected || _lastRecordedTimeString != updatedRelativeTime) {
@@ -307,7 +308,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
           _lastDataUpdateTime = lastTime;
           String relativeTime = _getRelativeTime(lastTime);
           int diffSeconds = DateTime.now().difference(lastTime).inSeconds;
-          bool isOnline = (diffSeconds >= 0 && diffSeconds < 12);
+          bool isOnline = (diffSeconds >= 0 && diffSeconds < 7); // 严格 7 秒判定
 
           double rawHum = double.tryParse(latest['humidity']?.toString() ?? '62.9') ?? 62.9;
 

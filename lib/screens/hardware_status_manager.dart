@@ -181,7 +181,7 @@ class HardwareStatusManager {
             String rawDhtTime = recordedStr.contains('+') ? recordedStr.split('+')[0] : recordedStr.replaceAll('Z', '');
             DateTime dhtLastTimeLocal = DateTime.parse(rawDhtTime);
             int dhtDiff = DateTime.now().difference(dhtLastTimeLocal).inSeconds;
-            dhtOnline = (dhtDiff >= -20 && dhtDiff <= 10);
+            dhtOnline = (dhtDiff >= -7 && dhtDiff <= 7);
           }
         }
       } catch (e) {
