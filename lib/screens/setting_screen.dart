@@ -43,11 +43,33 @@ class UserProfileCache {
   static Future<void> save(String name, String email, String avatar) async {
     final prefs = await SharedPreferences.getInstance();
     profileName = name;
-    profileEmail = email;
-    avatarPath = avatar;
+    // 保持 email 不变（不可编辑）
     await prefs.setString(_getUserKey('global_user_name'), name);
-    await prefs.setString(_getUserKey('global_user_email'), email);
     await prefs.setString(_getUserKey('global_user_avatar'), avatar);
+
+    try {
+      final supabase = Supabase.instance.client;
+      final user = supabase.auth.currentUser;
+      if (user != null) {
+        // 仅更新 Supabase Auth 里的用户名元数据
+        await supabase.auth.updateUser(UserAttributes(
+          data: {'name': name, 'full_name': name, 'displayname': name},
+        ));
+
+        // 全局同步更新数据库中关联表的显示名称
+        await supabase
+            .from('plants')
+            .update({'displayname': name})
+            .eq('user_id', user.id);
+
+        await supabase
+            .from('sensor_logs')
+            .update({'displayname': name})
+            .eq('user_id', user.id);
+      }
+    } catch (e) {
+      debugPrint('Failed to sync profile and displayname to Supabase: $e');
+    }
   }
 }
 
@@ -268,11 +290,13 @@ class _SettingScreenState extends State<SettingScreen> with AutomaticKeepAliveCl
                 const SizedBox(height: 12),
                 const Text('Email Address', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2C4A3E))),
                 const SizedBox(height: 4),
+                // 👑 将 Email 设为不可编辑 (enabled: false)，呈现灰色样式
                 TextField(
                   controller: emailCtrl,
+                  enabled: false, 
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: Colors.grey.shade100,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.black12)),
                   ),
                 ),
@@ -401,8 +425,6 @@ class _SettingScreenState extends State<SettingScreen> with AutomaticKeepAliveCl
                   ),
                   const SizedBox(height: 10),
                   HardwareStatusManager.buildStatusRow('myCF', HardwareStatusManager.isPiConnected),
-                  HardwareStatusManager.buildStatusRow('Camera Module', false),
-                  HardwareStatusManager.buildStatusRow('Float Water Level Sensor', HardwareStatusManager.isFloatConnected),
                 ]),
 
                 _buildSectionTitle('CAMERA & VISION SETTINGS'),

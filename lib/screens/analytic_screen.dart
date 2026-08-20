@@ -87,7 +87,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAlive
     return 'LEE XIN YI';
   }
 
-  // 👑 从云端获取历史数据并按小时聚合平均值
   List<int> _calculateDailyHourlyAverages(List<dynamic> rawRows, int slotNum) {
     Map<int, List<double>> hourlyBuckets = {};
     DateTime now = DateTime.now();
@@ -100,7 +99,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAlive
       String timeStr = row['recorded_at'] ?? '';
       try {
         DateTime dt = DateTime.parse(timeStr).toLocal();
-        // 统计今天的记录
         if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
           int hour = dt.hour;
           if (hour <= currentHour) {
@@ -173,7 +171,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAlive
       }
 
       try {
-        // 👑 关键：从云端数据库（sensor_logs）拉取足够多的历史日志记录，确保登出重新登录后能恢复历史
         final sensorResponse = await Supabase.instance.client
             .from('sensor_logs')
             .select()
@@ -204,12 +201,22 @@ class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAlive
       }
 
       try {
-        final snapshotsList = await Supabase.instance.client
+        // 👑 改进：先尝试按 user_id 查
+        var snapshotsList = await Supabase.instance.client
             .from('camera_snapshots')
             .select()
             .eq('user_id', user.id)
             .order('captured_at', ascending: false)
             .limit(10);
+
+        // 如果按 user_id 没查到，则放宽限制获取全局最新快照（兼容树莓派上传时未绑定 user_id 的情况）
+        if (snapshotsList == null || (snapshotsList as List).isEmpty) {
+          snapshotsList = await Supabase.instance.client
+              .from('camera_snapshots')
+              .select()
+              .order('captured_at', ascending: false)
+              .limit(10);
+        }
 
         String? bestFull;
         String? bestP1;
@@ -329,7 +336,6 @@ class _AnalyticScreenState extends State<AnalyticScreen> with AutomaticKeepAlive
                     ),
                     const SizedBox(height: 10),
                     
-                    // 🟢 严格保留你的 Live Camera 代码，未做任何改动
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20.0),
                       child: Column(
